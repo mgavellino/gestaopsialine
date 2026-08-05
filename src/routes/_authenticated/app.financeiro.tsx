@@ -440,7 +440,7 @@ function FinanceiroPage() {
     const prof = profile as { full_name?: string; crp?: string } | null;
 
     const data: ReportData = {
-      monthLabel: format(now, "MMMM 'de' yyyy", { locale: ptBR }),
+      monthLabel: periodLabel(period),
       professional: prof?.full_name ?? "Aline Dias",
       crp: prof?.crp ?? undefined,
       receivedCents: stats.received,
