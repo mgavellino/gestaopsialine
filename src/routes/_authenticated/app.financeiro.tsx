@@ -458,7 +458,7 @@ function FinanceiroPage() {
       previousProfitCents: prevProfit,
     };
     const doc = generateMonthlyReport(data);
-    doc.save(`relatorio-${format(now, "yyyy-MM")}.pdf`);
+    doc.save(`relatorio-${format(range.start, "yyyy-MM-dd")}.pdf`);
     toast.success("Relatório baixado");
   };
 
