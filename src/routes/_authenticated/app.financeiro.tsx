@@ -726,7 +726,7 @@ function FinanceiroPage() {
           <div className="rounded-2xl border border-border/60 bg-surface/40 overflow-hidden">
             {filtered.length === 0 ? (
               <div className="p-10 text-center text-sm text-muted-foreground">
-                Nenhum recebível por aqui.
+                Nenhum recebível neste período.
               </div>
             ) : (
               <ul className="divide-y divide-border/50">
