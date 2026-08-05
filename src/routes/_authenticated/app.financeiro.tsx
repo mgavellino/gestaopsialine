@@ -1,13 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FocusEvent, type TouchEvent } from "react";
 import { toast } from "sonner";
-import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   AlertTriangle,
   Ban,
   CalendarClock,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   DollarSign,
   FileDown,
@@ -26,6 +28,19 @@ import { generateReceipt, shortReceiptNumber } from "@/lib/receipt-pdf";
 import { exportIRYearCSV } from "@/lib/ir-export";
 import { MonthlyGoalCard } from "@/components/app/MonthlyGoalCard";
 import { ExpensesPieChart } from "@/components/app/ExpensesPieChart";
+import { FinanceHistoryCard } from "@/components/app/FinanceHistoryCard";
+import {
+  currentPeriod,
+  inPeriod,
+  isCurrentPeriod,
+  periodLabel,
+  periodRange,
+  shiftPeriod,
+  withMode,
+  type Period,
+  type PeriodMode,
+} from "@/lib/finance-periods";
+
 
 export const Route = createFileRoute("/_authenticated/app/financeiro")({
   component: FinanceiroPage,
