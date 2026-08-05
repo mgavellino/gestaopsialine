@@ -210,7 +210,7 @@ function FinanceiroPage() {
       .from("appointment_receivables")
       .select("*")
       .order("due_at", { ascending: false })
-      .limit(500);
+      .limit(3000);
     const list = (recs as unknown as Receivable[]) ?? [];
     setReceivables(list);
 
@@ -243,7 +243,7 @@ function FinanceiroPage() {
       .from("expenses")
       .select("*")
       .order("paid_at", { ascending: false })
-      .limit(500);
+      .limit(3000);
     setExpenses((data as unknown as Expense[]) ?? []);
   };
 
