@@ -474,7 +474,7 @@ function FinanceiroPage() {
         <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:flex-wrap">
           <button
             onClick={() => {
-              const year = new Date().getFullYear();
+              const year = periodRange(period).start.getFullYear();
               exportIRYearCSV(year, receivables as never, expenses as never, patients as never);
               toast.success(`Exportado IR ${year} (receitas + despesas)`);
             }}
