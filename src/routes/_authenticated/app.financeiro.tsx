@@ -135,6 +135,7 @@ function FinanceiroPage() {
   const [appts, setAppts] = useState<Record<string, AppointmentLite>>({});
   const [patients, setPatients] = useState<Record<string, PatientLite>>({});
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [period, setPeriod] = useState<Period>(() => currentPeriod("mes"));
   const [defaultPrice, setDefaultPrice] = useState<string>("");
   const [payingId, setPayingId] = useState<string | null>(null);
   const [expenseForm, setExpenseForm] = useState({
