@@ -965,13 +965,13 @@ function FinanceiroPage() {
           )}
 
           <div className="rounded-2xl border border-border/60 bg-surface/40 overflow-hidden">
-            {expenses.length === 0 ? (
+            {periodExpenses.length === 0 ? (
               <div className="p-10 text-center text-sm text-muted-foreground">
-                Nenhuma despesa registrada.
+                Nenhuma despesa neste período.
               </div>
             ) : (
               <ul className="divide-y divide-border/50">
-                {expenses.map((e) => (
+                {periodExpenses.map((e) => (
                   <li key={e.id} className="p-4 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{e.description}</div>
