@@ -998,7 +998,17 @@ function FinanceiroPage() {
           </div>
         </>
       )}
+
+      <div className="mt-6">
+        <FinanceHistoryCard
+          receivables={receivables as never}
+          expenses={expenses as never}
+          activeLabel={periodLabel(period)}
+          onSelect={(p) => setPeriod(p)}
+        />
+      </div>
     </div>
+
   );
 }
 
