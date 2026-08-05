@@ -246,38 +246,51 @@ function FinanceiroPage() {
     setExpenses((data as unknown as Expense[]) ?? []);
   };
 
+  /** Recebíveis do período selecionado (data de pagamento, ou vencimento se ainda não pago). */
+  const periodReceivables = useMemo(
+    () => receivables.filter((r) => inPeriod(r.paid_at ?? r.due_at, period)),
+    [receivables, period],
+  );
+  const periodExpenses = useMemo(
+    () => expenses.filter((e) => inPeriod(e.paid_at, period)),
+    [expenses, period],
+  );
+
   const filtered = useMemo(
-    () => (filter === "all" ? receivables : receivables.filter((r) => effStatus(r) === filter)),
-    [receivables, filter],
+    () =>
+      filter === "all"
+        ? periodReceivables
+        : periodReceivables.filter((r) => effStatus(r) === filter),
+    [periodReceivables, filter],
   );
 
   const counts = useMemo(() => {
-    const c: Record<StatusFilter, number> = { all: receivables.length, pending: 0, paid: 0, overdue: 0, waived: 0 };
-    for (const r of receivables) c[effStatus(r)] += 1;
+    const c: Record<StatusFilter, number> = {
+      all: periodReceivables.length,
+      pending: 0,
+      paid: 0,
+      overdue: 0,
+      waived: 0,
+    };
+    for (const r of periodReceivables) c[effStatus(r)] += 1;
     return c;
-  }, [receivables]);
+  }, [periodReceivables]);
 
   const stats = useMemo(() => {
-    const now = new Date();
-    const monthStart = startOfMonth(now).toISOString();
-    const monthEnd = endOfMonth(now).toISOString();
     let received = 0;
     let pending = 0;
     let overdue = 0;
-    let monthExpenses = 0;
-    for (const r of receivables) {
-      const ref = r.paid_at ?? r.due_at;
-      const inMonth = ref && ref >= monthStart && ref <= monthEnd;
+    let spent = 0;
+    for (const r of periodReceivables) {
       const st = effStatus(r);
-      if (st === "paid" && inMonth) received += r.amount_cents;
+      if (st === "paid") received += r.amount_cents;
       if (st === "pending") pending += r.amount_cents;
       if (st === "overdue") overdue += r.amount_cents;
     }
-    for (const e of expenses) {
-      if (e.paid_at >= monthStart && e.paid_at <= monthEnd) monthExpenses += e.amount_cents;
-    }
-    return { received, pending, overdue, expenses: monthExpenses, profit: received - monthExpenses };
-  }, [receivables, expenses]);
+    for (const e of periodExpenses) spent += e.amount_cents;
+    return { received, pending, overdue, expenses: spent, profit: received - spent };
+  }, [periodReceivables, periodExpenses]);
+
 
   const updateReceivable = async (id: string, patch: Partial<Receivable>) => {
     const { error } = await supabase.from("appointment_receivables").update(patch).eq("id", id);
