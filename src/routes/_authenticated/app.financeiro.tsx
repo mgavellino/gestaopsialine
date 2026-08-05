@@ -491,17 +491,59 @@ function FinanceiroPage() {
         </div>
       </div>
 
-
+      {/* Seletor de período: semana / mês / ano, com histórico navegável */}
+      <div className="mb-6 rounded-2xl border border-border/60 bg-surface/40 p-3 md:p-4 grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-background/60 border border-border/60 w-fit">
+          {([
+            { id: "semana", label: "Semana" },
+            { id: "mes", label: "Mês" },
+            { id: "ano", label: "Ano" },
+          ] as { id: PeriodMode; label: string }[]).map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setPeriod((p) => withMode(p, m.id))}
+              className={`px-3 h-9 rounded-lg text-xs font-medium transition-colors ${
+                period.mode === m.id ? "bg-foreground text-background" : "text-muted-foreground"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 justify-between sm:justify-end">
+          <button
+            onClick={() => setPeriod((p) => shiftPeriod(p, -1))}
+            className="h-9 w-9 grid place-items-center rounded-lg border border-border/60 hover:bg-surface"
+            aria-label="Período anterior"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="text-sm font-medium capitalize text-center min-w-0 truncate">
+            {periodLabel(period)}
+          </div>
+          <button
+            onClick={() => setPeriod((p) => shiftPeriod(p, 1))}
+            className="h-9 w-9 grid place-items-center rounded-lg border border-border/60 hover:bg-surface"
+            aria-label="Período seguinte"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          {!isCurrentPeriod(period) && (
+            <button
+              onClick={() => setPeriod((p) => currentPeriod(p.mode))}
+              className="h-9 px-3 rounded-lg border border-border/60 text-xs hover:bg-surface"
+            >
+              Atual
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2 mb-6">
         <MonthlyGoalCard receivedCents={stats.received} pendingCents={stats.pending + stats.overdue} />
-        <ExpensesPieChart expenses={expenses.filter((e) => {
-          const now = new Date();
-          const m = startOfMonth(now).toISOString();
-          const me = endOfMonth(now).toISOString();
-          return e.paid_at >= m && e.paid_at <= me;
-        }) as never} />
+        <ExpensesPieChart expenses={periodExpenses as never} />
       </div>
+
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-6">
         <StatCard label="Recebido" value={brl(stats.received)} tone="emerald" />
