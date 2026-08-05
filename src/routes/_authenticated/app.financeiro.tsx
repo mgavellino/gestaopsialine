@@ -1,13 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FocusEvent, type TouchEvent } from "react";
 import { toast } from "sonner";
-import { format, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   AlertTriangle,
   Ban,
   CalendarClock,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   DollarSign,
   FileDown,
@@ -26,6 +28,19 @@ import { generateReceipt, shortReceiptNumber } from "@/lib/receipt-pdf";
 import { exportIRYearCSV } from "@/lib/ir-export";
 import { MonthlyGoalCard } from "@/components/app/MonthlyGoalCard";
 import { ExpensesPieChart } from "@/components/app/ExpensesPieChart";
+import { FinanceHistoryCard } from "@/components/app/FinanceHistoryCard";
+import {
+  currentPeriod,
+  inPeriod,
+  isCurrentPeriod,
+  periodLabel,
+  periodRange,
+  shiftPeriod,
+  withMode,
+  type Period,
+  type PeriodMode,
+} from "@/lib/finance-periods";
+
 
 export const Route = createFileRoute("/_authenticated/app/financeiro")({
   component: FinanceiroPage,
@@ -120,6 +135,7 @@ function FinanceiroPage() {
   const [appts, setAppts] = useState<Record<string, AppointmentLite>>({});
   const [patients, setPatients] = useState<Record<string, PatientLite>>({});
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [period, setPeriod] = useState<Period>(() => currentPeriod("mes"));
   const [defaultPrice, setDefaultPrice] = useState<string>("");
   const [payingId, setPayingId] = useState<string | null>(null);
   const [expenseForm, setExpenseForm] = useState({
@@ -194,7 +210,7 @@ function FinanceiroPage() {
       .from("appointment_receivables")
       .select("*")
       .order("due_at", { ascending: false })
-      .limit(500);
+      .limit(3000);
     const list = (recs as unknown as Receivable[]) ?? [];
     setReceivables(list);
 
@@ -227,42 +243,55 @@ function FinanceiroPage() {
       .from("expenses")
       .select("*")
       .order("paid_at", { ascending: false })
-      .limit(500);
+      .limit(3000);
     setExpenses((data as unknown as Expense[]) ?? []);
   };
 
+  /** Recebíveis do período selecionado (data de pagamento, ou vencimento se ainda não pago). */
+  const periodReceivables = useMemo(
+    () => receivables.filter((r) => inPeriod(r.paid_at ?? r.due_at, period)),
+    [receivables, period],
+  );
+  const periodExpenses = useMemo(
+    () => expenses.filter((e) => inPeriod(e.paid_at, period)),
+    [expenses, period],
+  );
+
   const filtered = useMemo(
-    () => (filter === "all" ? receivables : receivables.filter((r) => effStatus(r) === filter)),
-    [receivables, filter],
+    () =>
+      filter === "all"
+        ? periodReceivables
+        : periodReceivables.filter((r) => effStatus(r) === filter),
+    [periodReceivables, filter],
   );
 
   const counts = useMemo(() => {
-    const c: Record<StatusFilter, number> = { all: receivables.length, pending: 0, paid: 0, overdue: 0, waived: 0 };
-    for (const r of receivables) c[effStatus(r)] += 1;
+    const c: Record<StatusFilter, number> = {
+      all: periodReceivables.length,
+      pending: 0,
+      paid: 0,
+      overdue: 0,
+      waived: 0,
+    };
+    for (const r of periodReceivables) c[effStatus(r)] += 1;
     return c;
-  }, [receivables]);
+  }, [periodReceivables]);
 
   const stats = useMemo(() => {
-    const now = new Date();
-    const monthStart = startOfMonth(now).toISOString();
-    const monthEnd = endOfMonth(now).toISOString();
     let received = 0;
     let pending = 0;
     let overdue = 0;
-    let monthExpenses = 0;
-    for (const r of receivables) {
-      const ref = r.paid_at ?? r.due_at;
-      const inMonth = ref && ref >= monthStart && ref <= monthEnd;
+    let spent = 0;
+    for (const r of periodReceivables) {
       const st = effStatus(r);
-      if (st === "paid" && inMonth) received += r.amount_cents;
+      if (st === "paid") received += r.amount_cents;
       if (st === "pending") pending += r.amount_cents;
       if (st === "overdue") overdue += r.amount_cents;
     }
-    for (const e of expenses) {
-      if (e.paid_at >= monthStart && e.paid_at <= monthEnd) monthExpenses += e.amount_cents;
-    }
-    return { received, pending, overdue, expenses: monthExpenses, profit: received - monthExpenses };
-  }, [receivables, expenses]);
+    for (const e of periodExpenses) spent += e.amount_cents;
+    return { received, pending, overdue, expenses: spent, profit: received - spent };
+  }, [periodReceivables, periodExpenses]);
+
 
   const updateReceivable = async (id: string, patch: Partial<Receivable>) => {
     const { error } = await supabase.from("appointment_receivables").update(patch).eq("id", id);
@@ -336,12 +365,13 @@ function FinanceiroPage() {
 
   const downloadReport = async () => {
     if (!user) return;
-    const now = new Date();
-    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const monthStart = startOfMonth(now).toISOString();
-    const monthEnd = endOfMonth(now).toISOString();
-    const prevStart = startOfMonth(prev).toISOString();
-    const prevEnd = endOfMonth(prev).toISOString();
+    const range = periodRange(period);
+    const prevRange = periodRange(shiftPeriod(period, -1));
+    const monthStart = range.start.toISOString();
+    const monthEnd = range.end.toISOString();
+    const prevStart = prevRange.start.toISOString();
+    const prevEnd = prevRange.end.toISOString();
+
 
     const [{ data: paidRecs }, { data: prevPaidRecs }, { data: prevExp }, { data: profile }, { data: doneAppts }] =
       await Promise.all([
@@ -410,7 +440,7 @@ function FinanceiroPage() {
     const prof = profile as { full_name?: string; crp?: string } | null;
 
     const data: ReportData = {
-      monthLabel: format(now, "MMMM 'de' yyyy", { locale: ptBR }),
+      monthLabel: periodLabel(period),
       professional: prof?.full_name ?? "Aline Dias",
       crp: prof?.crp ?? undefined,
       receivedCents: stats.received,
@@ -428,7 +458,7 @@ function FinanceiroPage() {
       previousProfitCents: prevProfit,
     };
     const doc = generateMonthlyReport(data);
-    doc.save(`relatorio-${format(now, "yyyy-MM")}.pdf`);
+    doc.save(`relatorio-${format(range.start, "yyyy-MM-dd")}.pdf`);
     toast.success("Relatório baixado");
   };
 
@@ -444,7 +474,7 @@ function FinanceiroPage() {
         <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:flex-wrap">
           <button
             onClick={() => {
-              const year = new Date().getFullYear();
+              const year = periodRange(period).start.getFullYear();
               exportIRYearCSV(year, receivables as never, expenses as never, patients as never);
               toast.success(`Exportado IR ${year} (receitas + despesas)`);
             }}
@@ -462,23 +492,65 @@ function FinanceiroPage() {
         </div>
       </div>
 
-
+      {/* Seletor de período: semana / mês / ano, com histórico navegável */}
+      <div className="mb-6 rounded-2xl border border-border/60 bg-surface/40 p-3 md:p-4 grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-background/60 border border-border/60 w-fit">
+          {([
+            { id: "semana", label: "Semana" },
+            { id: "mes", label: "Mês" },
+            { id: "ano", label: "Ano" },
+          ] as { id: PeriodMode; label: string }[]).map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setPeriod((p) => withMode(p, m.id))}
+              className={`px-3 h-9 rounded-lg text-xs font-medium transition-colors ${
+                period.mode === m.id ? "bg-foreground text-background" : "text-muted-foreground"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 justify-between sm:justify-end">
+          <button
+            onClick={() => setPeriod((p) => shiftPeriod(p, -1))}
+            className="h-9 w-9 grid place-items-center rounded-lg border border-border/60 hover:bg-surface"
+            aria-label="Período anterior"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="text-sm font-medium capitalize text-center min-w-0 truncate">
+            {periodLabel(period)}
+          </div>
+          <button
+            onClick={() => setPeriod((p) => shiftPeriod(p, 1))}
+            className="h-9 w-9 grid place-items-center rounded-lg border border-border/60 hover:bg-surface"
+            aria-label="Período seguinte"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          {!isCurrentPeriod(period) && (
+            <button
+              onClick={() => setPeriod((p) => currentPeriod(p.mode))}
+              className="h-9 px-3 rounded-lg border border-border/60 text-xs hover:bg-surface"
+            >
+              Atual
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2 mb-6">
         <MonthlyGoalCard receivedCents={stats.received} pendingCents={stats.pending + stats.overdue} />
-        <ExpensesPieChart expenses={expenses.filter((e) => {
-          const now = new Date();
-          const m = startOfMonth(now).toISOString();
-          const me = endOfMonth(now).toISOString();
-          return e.paid_at >= m && e.paid_at <= me;
-        }) as never} />
+        <ExpensesPieChart expenses={periodExpenses as never} />
       </div>
+
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-6">
         <StatCard label="Recebido" value={brl(stats.received)} tone="emerald" />
         <StatCard label="Despesas" value={brl(stats.expenses)} tone="red" icon="down" />
         <StatCard
-          label="Lucro do mês"
+          label="Lucro do período"
           value={brl(stats.profit)}
           tone={stats.profit >= 0 ? "emerald" : "red"}
           icon="up"
@@ -654,7 +726,7 @@ function FinanceiroPage() {
           <div className="rounded-2xl border border-border/60 bg-surface/40 overflow-hidden">
             {filtered.length === 0 ? (
               <div className="p-10 text-center text-sm text-muted-foreground">
-                Nenhum recebível por aqui.
+                Nenhum recebível neste período.
               </div>
             ) : (
               <ul className="divide-y divide-border/50">
@@ -893,13 +965,13 @@ function FinanceiroPage() {
           )}
 
           <div className="rounded-2xl border border-border/60 bg-surface/40 overflow-hidden">
-            {expenses.length === 0 ? (
+            {periodExpenses.length === 0 ? (
               <div className="p-10 text-center text-sm text-muted-foreground">
-                Nenhuma despesa registrada.
+                Nenhuma despesa neste período.
               </div>
             ) : (
               <ul className="divide-y divide-border/50">
-                {expenses.map((e) => (
+                {periodExpenses.map((e) => (
                   <li key={e.id} className="p-4 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{e.description}</div>
@@ -926,7 +998,17 @@ function FinanceiroPage() {
           </div>
         </>
       )}
+
+      <div className="mt-6">
+        <FinanceHistoryCard
+          receivables={receivables as never}
+          expenses={expenses as never}
+          activeLabel={periodLabel(period)}
+          onSelect={(p) => setPeriod(p)}
+        />
+      </div>
     </div>
+
   );
 }
 

@@ -75,7 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const handleSignOut = async () => {
     await signOut();
     toast.success("Até logo, Aline.");
-    navigate({ to: "/login", search: { redirect: undefined } });
+    navigate({ to: "/login", search: { redirect: "/app" } });
   };
 
   return (

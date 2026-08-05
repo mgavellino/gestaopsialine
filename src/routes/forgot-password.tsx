@@ -71,7 +71,7 @@ function ForgotPage() {
         </form>
       )}
       <p className="mt-5 text-center text-xs text-muted-foreground">
-        <Link to="/login" search={{ redirect: undefined }} className="text-foreground hover:underline">
+        <Link to="/login" search={{ redirect: "/app" }} className="text-foreground hover:underline">
           Voltar para login
         </Link>
       </p>
