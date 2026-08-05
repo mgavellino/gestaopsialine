@@ -365,12 +365,13 @@ function FinanceiroPage() {
 
   const downloadReport = async () => {
     if (!user) return;
-    const now = new Date();
-    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const monthStart = startOfMonth(now).toISOString();
-    const monthEnd = endOfMonth(now).toISOString();
-    const prevStart = startOfMonth(prev).toISOString();
-    const prevEnd = endOfMonth(prev).toISOString();
+    const range = periodRange(period);
+    const prevRange = periodRange(shiftPeriod(period, -1));
+    const monthStart = range.start.toISOString();
+    const monthEnd = range.end.toISOString();
+    const prevStart = prevRange.start.toISOString();
+    const prevEnd = prevRange.end.toISOString();
+
 
     const [{ data: paidRecs }, { data: prevPaidRecs }, { data: prevExp }, { data: profile }, { data: doneAppts }] =
       await Promise.all([
