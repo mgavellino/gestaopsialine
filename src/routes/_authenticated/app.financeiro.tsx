@@ -550,7 +550,7 @@ function FinanceiroPage() {
         <StatCard label="Recebido" value={brl(stats.received)} tone="emerald" />
         <StatCard label="Despesas" value={brl(stats.expenses)} tone="red" icon="down" />
         <StatCard
-          label="Lucro do mês"
+          label="Lucro do período"
           value={brl(stats.profit)}
           tone={stats.profit >= 0 ? "emerald" : "red"}
           icon="up"
