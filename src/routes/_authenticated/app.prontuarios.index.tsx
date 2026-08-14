@@ -104,11 +104,11 @@ function RecordsListPage() {
           <label className="text-xs text-muted-foreground">
             Paciente para o novo prontuário
           </label>
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <select
               value={selectedPatient}
               onChange={(e) => setSelectedPatient(e.target.value)}
-              className="flex-1 h-10 px-3 rounded-lg bg-background border border-border/60 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
+              className="w-full sm:flex-1 h-11 px-3 rounded-lg bg-background border border-border/60 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
             >
               <option value="">Selecione...</option>
               {patients.map((p) => (
@@ -120,11 +120,12 @@ function RecordsListPage() {
             <button
               onClick={handleCreate}
               disabled={creating || !selectedPatient}
-              className="h-10 px-5 rounded-lg bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+              className="w-full sm:w-auto h-11 px-5 rounded-lg bg-foreground text-background text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
             >
-              {creating ? "Criando..." : "Criar"}
+              {creating ? "Criando..." : "Criar prontuário"}
             </button>
           </div>
+
           <div className="mt-4">
             <label className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
               <Sparkles className="h-3 w-3 text-[oklch(0.68_0.20_245)]" />
