@@ -30,13 +30,12 @@ function bufToB64(buf: ArrayBuffer): string {
 }
 
 function b64ToBuf(b64: string): ArrayBuffer {
-  const bytes = new Uint8Array(new ArrayBuffer(b64.length));
   const raw = atob(b64);
   const out = new Uint8Array(new ArrayBuffer(raw.length));
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
-  void bytes;
   return out.buffer;
 }
+
 
 function randomChallenge(): ArrayBuffer {
   const bytes = new Uint8Array(new ArrayBuffer(32));
