@@ -543,6 +543,7 @@ export type Database = {
           address: string | null
           assessment_date: string | null
           avatar_url: string | null
+          billing_type: string
           birth_date: string | null
           cpf: string | null
           created_at: string
@@ -560,14 +561,17 @@ export type Database = {
           owner_id: string
           phone: string | null
           reassessment_date: string | null
+          receipt_required: boolean
           session_price: number | null
           therapeutic_plan: Json | null
+          therapy_end_date: string | null
           updated_at: string
         }
         Insert: {
           address?: string | null
           assessment_date?: string | null
           avatar_url?: string | null
+          billing_type?: string
           birth_date?: string | null
           cpf?: string | null
           created_at?: string
@@ -585,14 +589,17 @@ export type Database = {
           owner_id: string
           phone?: string | null
           reassessment_date?: string | null
+          receipt_required?: boolean
           session_price?: number | null
           therapeutic_plan?: Json | null
+          therapy_end_date?: string | null
           updated_at?: string
         }
         Update: {
           address?: string | null
           assessment_date?: string | null
           avatar_url?: string | null
+          billing_type?: string
           birth_date?: string | null
           cpf?: string | null
           created_at?: string
@@ -610,8 +617,10 @@ export type Database = {
           owner_id?: string
           phone?: string | null
           reassessment_date?: string | null
+          receipt_required?: boolean
           session_price?: number | null
           therapeutic_plan?: Json | null
+          therapy_end_date?: string | null
           updated_at?: string
         }
         Relationships: []

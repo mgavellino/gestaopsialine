@@ -1,6 +1,8 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/app/AppShell";
+import { BiometricGate } from "@/components/app/BiometricGate";
+
 
 function hasStoredSession() {
   if (typeof window === "undefined") return false;
@@ -28,8 +30,11 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   return (
-    <AppShell>
-      <Outlet />
-    </AppShell>
+    <BiometricGate>
+      <AppShell>
+        <Outlet />
+      </AppShell>
+    </BiometricGate>
   );
 }
+

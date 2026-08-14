@@ -3,6 +3,8 @@ import { Target, Save, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { parseMoneyToCents, centsToInput } from "@/lib/money";
+
 
 type Props = {
   receivedCents: number;
@@ -27,14 +29,16 @@ export function MonthlyGoalCard({ receivedCents, pendingCents }: Props) {
       .then(({ data }) => {
         const v = (data as { monthly_goal_cents?: number } | null)?.monthly_goal_cents ?? 0;
         setGoal(v);
-        setInput(v ? String(v / 100) : "");
+        setInput(v ? centsToInput(v) : "");
+
       });
   }, [user]);
 
   const save = async () => {
     if (!user) return;
-    const cents = Math.round(parseFloat(input.replace(",", ".")) * 100);
+    const cents = parseMoneyToCents(input);
     if (Number.isNaN(cents) || cents < 0) return toast.error("Valor inválido");
+
     const { error } = await supabase.from("profiles").update({ monthly_goal_cents: cents }).eq("id", user.id);
     if (error) return toast.error(error.message);
     setGoal(cents);

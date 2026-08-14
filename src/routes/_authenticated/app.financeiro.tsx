@@ -17,18 +17,22 @@ import {
   Plus,
   Receipt,
   RotateCcw,
+  Search,
   Trash2,
   TrendingDown,
   TrendingUp,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { parseMoneyToCents, centsToInput } from "@/lib/money";
 import { generateMonthlyReport, type ReportData } from "@/lib/pdf-report";
 import { generateReceipt, shortReceiptNumber } from "@/lib/receipt-pdf";
 import { exportIRYearCSV } from "@/lib/ir-export";
 import { MonthlyGoalCard } from "@/components/app/MonthlyGoalCard";
 import { ExpensesPieChart } from "@/components/app/ExpensesPieChart";
 import { FinanceHistoryCard } from "@/components/app/FinanceHistoryCard";
+
 import {
   currentPeriod,
   inPeriod,
@@ -135,9 +139,11 @@ function FinanceiroPage() {
   const [appts, setAppts] = useState<Record<string, AppointmentLite>>({});
   const [patients, setPatients] = useState<Record<string, PatientLite>>({});
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [search, setSearch] = useState("");
   const [period, setPeriod] = useState<Period>(() => currentPeriod("mes"));
   const [defaultPrice, setDefaultPrice] = useState<string>("");
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [allPatients, setAllPatients] = useState<PatientLite[]>([]);
   const [expenseForm, setExpenseForm] = useState({
     description: "",
     amount: "",
@@ -146,44 +152,56 @@ function FinanceiroPage() {
   });
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [incomeOpen, setIncomeOpen] = useState(false);
-  const [incomeForm, setIncomeForm] = useState({
+  const emptyIncome = {
     description: "",
     amount: "",
     date: format(new Date(), "yyyy-MM-dd"),
     received: true,
     payment_method: "pix",
-  });
+    patient_id: "",
+    monthly: false,
+    months: "12",
+  };
+  const [incomeForm, setIncomeForm] = useState(emptyIncome);
 
   const addIncome = async () => {
     if (!user) return;
-    const cents = Math.round(parseFloat(incomeForm.amount.replace(",", ".")) * 100);
-    if (!incomeForm.description.trim() || Number.isNaN(cents) || cents <= 0) {
-      return toast.error("Preencha descrição e valor");
+    const cents = parseMoneyToCents(incomeForm.amount);
+    const patientName = allPatients.find((p) => p.id === incomeForm.patient_id)?.full_name;
+    const description = incomeForm.description.trim() || patientName || "";
+    if (!description || Number.isNaN(cents) || cents <= 0) {
+      return toast.error("Preencha descrição (ou paciente) e valor");
     }
-    const when = new Date(incomeForm.date + "T12:00:00").toISOString();
-    const { error } = await supabase.from("appointment_receivables").insert({
-      owner_id: user.id,
-      appointment_id: null,
-      patient_id: null,
-      description: incomeForm.description.trim(),
-      amount_cents: cents,
-      status: incomeForm.received ? "paid" : "pending",
-      due_at: when,
-      paid_at: incomeForm.received ? when : null,
-      payment_method: incomeForm.received ? incomeForm.payment_method : null,
+    const months = incomeForm.monthly ? Math.max(1, Math.min(36, parseInt(incomeForm.months, 10) || 1)) : 1;
+    const base = new Date(incomeForm.date + "T12:00:00");
+
+    const rows = Array.from({ length: months }, (_, i) => {
+      const when = new Date(base);
+      when.setMonth(when.getMonth() + i);
+      const iso = when.toISOString();
+      // Só a primeira parcela pode já estar recebida; as futuras ficam a receber.
+      const isPaid = incomeForm.received && i === 0;
+      return {
+        owner_id: user.id,
+        appointment_id: null,
+        patient_id: incomeForm.patient_id || null,
+        description: months > 1 ? `${description} (${i + 1}/${months})` : description,
+        amount_cents: cents,
+        status: (isPaid ? "paid" : "pending") as "paid" | "pending",
+        due_at: iso,
+        paid_at: isPaid ? iso : null,
+        payment_method: isPaid ? incomeForm.payment_method : null,
+      };
     });
+
+    const { error } = await supabase.from("appointment_receivables").insert(rows);
     if (error) return toast.error(error.message);
-    toast.success("Receita registrada");
-    setIncomeForm({
-      description: "",
-      amount: "",
-      date: format(new Date(), "yyyy-MM-dd"),
-      received: true,
-      payment_method: "pix",
-    });
+    toast.success(months > 1 ? `${months} mensalidades criadas` : "Receita registrada");
+    setIncomeForm(emptyIncome);
     setIncomeOpen(false);
     loadReceivables();
   };
+
 
   useEffect(() => {
     if (!user) return;
@@ -195,10 +213,16 @@ function FinanceiroPage() {
       .then(({ data }) => {
         const v = (data as { default_session_price_cents?: number } | null)
           ?.default_session_price_cents;
-        if (typeof v === "number" && v > 0) setDefaultPrice(String(v / 100));
+        if (typeof v === "number" && v > 0) setDefaultPrice(centsToInput(v));
       });
+    supabase
+      .from("patients")
+      .select("id, full_name")
+      .order("full_name")
+      .then(({ data }) => setAllPatients((data as unknown as PatientLite[]) ?? []));
     loadAll();
   }, [user]);
+
 
   const loadAll = async () => {
     await Promise.all([loadReceivables(), loadExpenses()]);
@@ -257,13 +281,19 @@ function FinanceiroPage() {
     [expenses, period],
   );
 
-  const filtered = useMemo(
-    () =>
-      filter === "all"
-        ? periodReceivables
-        : periodReceivables.filter((r) => effStatus(r) === filter),
-    [periodReceivables, filter],
-  );
+  const nameOf = (r: Receivable) =>
+    (r.patient_id ? patients[r.patient_id]?.full_name : null) ??
+    (r.patient_id ? allPatients.find((p) => p.id === r.patient_id)?.full_name : null) ??
+    r.description ??
+    "";
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = filter === "all" ? periodReceivables : periodReceivables.filter((r) => effStatus(r) === filter);
+    if (q) list = list.filter((r) => nameOf(r).toLowerCase().includes(q));
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodReceivables, filter, search, patients, allPatients]);
 
   const counts = useMemo(() => {
     const c: Record<StatusFilter, number> = {
@@ -310,14 +340,14 @@ function FinanceiroPage() {
   };
 
   const setAmount = (r: Receivable, value: string) => {
-    const cents = Math.round(parseFloat(value.replace(",", ".")) * 100);
+    const cents = parseMoneyToCents(value);
     if (Number.isNaN(cents) || cents < 0) return;
     updateReceivable(r.id, { amount_cents: cents });
   };
 
   const saveDefaultPrice = async () => {
     if (!user) return;
-    const cents = Math.round(parseFloat(defaultPrice.replace(",", ".")) * 100);
+    const cents = parseMoneyToCents(defaultPrice);
     if (Number.isNaN(cents) || cents < 0) return toast.error("Valor inválido");
     const { error } = await supabase
       .from("profiles")
@@ -329,7 +359,7 @@ function FinanceiroPage() {
 
   const addExpense = async () => {
     if (!user) return;
-    const cents = Math.round(parseFloat(expenseForm.amount.replace(",", ".")) * 100);
+    const cents = parseMoneyToCents(expenseForm.amount);
     if (!expenseForm.description.trim() || Number.isNaN(cents) || cents <= 0) {
       return toast.error("Preencha descrição e valor");
     }
@@ -633,6 +663,25 @@ function FinanceiroPage() {
             </button>
           </div>
 
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar paciente ou descrição"
+              className="w-full h-11 pl-9 pr-9 rounded-lg bg-surface border border-border/60 text-base sm:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                aria-label="Limpar busca"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
           {incomeOpen && (
             <div className="rounded-2xl border border-border/60 bg-surface/40 p-4 mb-4 grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
@@ -668,6 +717,49 @@ function FinanceiroPage() {
                   onChange={(e) => setIncomeForm({ ...incomeForm, date: e.target.value })}
                   className="mt-1 w-full h-11 px-3 rounded-lg bg-background border border-border/60 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
                 />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs text-muted-foreground">Paciente (opcional)</label>
+                <select
+                  value={incomeForm.patient_id}
+                  onChange={(e) => setIncomeForm({ ...incomeForm, patient_id: e.target.value })}
+                  className="mt-1 w-full h-11 px-3 rounded-lg bg-background border border-border/60 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
+                >
+                  <option value="">Sem paciente (receita avulsa)</option>
+                  {allPatients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-2 rounded-xl border border-border/60 bg-background/50 p-3">
+                <label className="flex items-center gap-2.5 text-sm select-none cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={incomeForm.monthly}
+                    onChange={(e) => setIncomeForm({ ...incomeForm, monthly: e.target.checked })}
+                    className="h-4 w-4 rounded border-border/80 bg-background accent-foreground"
+                  />
+                  Pagamento mensal (mensalidade)
+                </label>
+                {incomeForm.monthly && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Gerar</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={36}
+                      inputMode="numeric"
+                      value={incomeForm.months}
+                      onChange={(e) => setIncomeForm({ ...incomeForm, months: e.target.value })}
+                      className="h-10 w-20 px-2 rounded-lg bg-background border border-border/60 text-base sm:text-sm text-right"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      meses, um vencimento por mês a partir da data escolhida.
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="sm:col-span-2">
                 <label className="text-xs text-muted-foreground">Situação</label>
@@ -732,7 +824,6 @@ function FinanceiroPage() {
               <ul className="divide-y divide-border/50">
                 {filtered.map((r) => {
                   const ap = r.appointment_id ? appts[r.appointment_id] : undefined;
-                  const patient = r.patient_id ? patients[r.patient_id] : undefined;
                   const meta = STATUS_META[effStatus(r)];
                   const isPicking = payingId === r.id;
                   return (
@@ -740,7 +831,7 @@ function FinanceiroPage() {
                       <div className="flex items-start gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">
-                            {patient?.full_name ?? r.description ?? "Sem paciente"}
+                            {nameOf(r) || "Sem paciente"}
                           </div>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             {ap
@@ -776,7 +867,7 @@ function FinanceiroPage() {
                             onFocus={focusMoneyInput}
                             onTouchStart={focusMoneyInput}
                             onBlur={(e) => {
-                              const cents = Math.round(parseFloat(e.target.value.replace(",", ".")) * 100);
+                              const cents = parseMoneyToCents(e.target.value);
                               if (!Number.isNaN(cents) && cents !== r.amount_cents) setAmount(r, e.target.value);
                             }}
                             className="h-10 w-28 px-2 rounded-lg bg-background border border-border/60 text-base sm:text-sm text-right focus:outline-none focus:ring-2 focus:ring-ring/40"

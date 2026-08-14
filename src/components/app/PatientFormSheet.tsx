@@ -27,6 +27,9 @@ export type Patient = {
   financial_responsible_name: string | null;
   financial_responsible_cpf: string | null;
   session_price: number | null;
+  therapy_end_date: string | null;
+  receipt_required: boolean | null;
+  billing_type: string | null;
   father_name: string | null;
   father_phone: string | null;
   mother_name: string | null;
@@ -58,6 +61,9 @@ const empty = {
   financial_responsible_name: "",
   financial_responsible_cpf: "",
   session_price: "",
+  therapy_end_date: "",
+  receipt_required: false,
+  billing_type: "sessao",
   father_name: "",
   father_phone: "",
   mother_name: "",
@@ -96,6 +102,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, ownerId, onSaved
         financial_responsible_name: patient.financial_responsible_name ?? "",
         financial_responsible_cpf: patient.financial_responsible_cpf ?? "",
         session_price: patient.session_price != null ? String(patient.session_price) : "",
+        therapy_end_date: patient.therapy_end_date ?? "",
+        receipt_required: patient.receipt_required ?? false,
+        billing_type: patient.billing_type ?? "sessao",
         father_name: patient.father_name ?? "",
         father_phone: patient.father_phone ?? "",
         mother_name: patient.mother_name ?? "",
@@ -135,6 +144,9 @@ export function PatientFormSheet({ open, onOpenChange, patient, ownerId, onSaved
       financial_responsible_name: form.financial_responsible_name.trim() || null,
       financial_responsible_cpf: form.financial_responsible_cpf.trim() || null,
       session_price: price != null && !isNaN(price) ? price : null,
+      therapy_end_date: form.therapy_end_date || null,
+      receipt_required: form.receipt_required,
+      billing_type: form.billing_type,
       father_name: form.father_name.trim() || null,
       father_phone: form.father_phone.trim() || null,
       mother_name: form.mother_name.trim() || null,
@@ -271,6 +283,15 @@ export function PatientFormSheet({ open, onOpenChange, patient, ownerId, onSaved
             </Field>
           </div>
 
+          <Field label="Data de saída da terapia">
+            <input
+              type="date"
+              value={form.therapy_end_date}
+              onChange={(e) => setForm({ ...form, therapy_end_date: e.target.value })}
+              className={inputCls}
+            />
+          </Field>
+
           <div className="pt-2">
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               Financeiro
@@ -305,6 +326,25 @@ export function PatientFormSheet({ open, onOpenChange, patient, ownerId, onSaved
                   />
                 </Field>
               </div>
+              <Field label="Forma de cobrança">
+                <select
+                  value={form.billing_type}
+                  onChange={(e) => setForm({ ...form, billing_type: e.target.value })}
+                  className={inputCls}
+                >
+                  <option value="sessao">Por sessão</option>
+                  <option value="mensal">Mensal (mensalidade)</option>
+                </select>
+              </Field>
+              <label className="flex items-center gap-2.5 text-sm text-muted-foreground select-none cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.receipt_required}
+                  onChange={(e) => setForm({ ...form, receipt_required: e.target.checked })}
+                  className="h-4 w-4 rounded border-border/80 bg-background accent-foreground"
+                />
+                Emitir recibo de pagamento
+              </label>
             </div>
           </div>
 
@@ -388,7 +428,7 @@ export function PatientFormSheet({ open, onOpenChange, patient, ownerId, onSaved
 }
 
 const inputCls =
-  "w-full h-10 px-3 rounded-lg bg-surface border border-border/60 text-sm focus:outline-none focus:ring-2 focus:ring-ring/40";
+  "w-full h-11 px-3 rounded-lg bg-surface border border-border/60 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring/40";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

@@ -37,6 +37,20 @@ type Patient = {
   notes: string | null;
   is_active: boolean;
   cpf: string | null;
+  address: string | null;
+  assessment_date: string | null;
+  reassessment_date: string | null;
+  therapy_end_date: string | null;
+  financial_responsible_name: string | null;
+  financial_responsible_cpf: string | null;
+  session_price: number | null;
+  billing_type: string | null;
+  receipt_required: boolean | null;
+  father_name: string | null;
+  father_phone: string | null;
+  mother_name: string | null;
+  mother_phone: string | null;
+  created_at: string;
   therapeutic_plan: TherapeuticPlan | null;
 };
 
@@ -67,7 +81,7 @@ function PatientDetailPage() {
   const { id } = Route.useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"consultas" | "timeline" | "plan" | "geno">("consultas");
+  const [tab, setTab] = useState<"dados" | "consultas" | "timeline" | "plan" | "geno">("consultas");
   const [patient, setPatient] = useState<Patient | null>(null);
   const [appointments, setAppointments] = useState<{ id: string; starts_at: string; status: string; kind: string; title: string | null }[]>([]);
   const [records, setRecords] = useState<{ id: string; title: string; created_at: string }[]>([]);
@@ -174,16 +188,113 @@ function PatientDetailPage() {
       </div>
 
       <div className="flex items-center gap-1 mb-4 p-1 rounded-xl bg-surface/40 border border-border/60 flex-wrap">
+        <TabBtn active={tab === "dados"} onClick={() => setTab("dados")}>Dados</TabBtn>
         <TabBtn active={tab === "consultas"} onClick={() => setTab("consultas")}>Consultas</TabBtn>
         <TabBtn active={tab === "timeline"} onClick={() => setTab("timeline")}>Linha do tempo</TabBtn>
         <TabBtn active={tab === "plan"} onClick={() => setTab("plan")}>Plano terapêutico</TabBtn>
         <TabBtn active={tab === "geno"} onClick={() => setTab("geno")}>Genograma</TabBtn>
       </div>
 
+      {tab === "dados" && <PatientDataView patient={patient} />}
       {tab === "consultas" && <ConsultationsView appointments={appointments} />}
       {tab === "timeline" && <TimelineView items={timeline} />}
       {tab === "plan" && <TherapeuticPlanEditor patient={patient} onSaved={setPatient} />}
       {tab === "geno" && <GenogramEditor patient={patient} onSaved={setPatient} />}
+    </div>
+  );
+}
+
+function calcAge(birth: string | null): string | null {
+  if (!birth) return null;
+  const b = parseISO(birth);
+  if (isNaN(b.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - b.getFullYear();
+  const m = now.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--;
+  return age >= 0 && age < 150 ? `${age} anos` : null;
+}
+
+const fmtDate = (d: string | null) => (d ? format(parseISO(d), "dd/MM/yyyy") : null);
+
+function PatientDataView({ patient }: { patient: Patient }) {
+  const groups: { title: string; rows: [string, string | null][] }[] = [
+    {
+      title: "Identificação",
+      rows: [
+        ["Nome do paciente", patient.full_name],
+        ["Idade", calcAge(patient.birth_date)],
+        ["Data de nascimento", fmtDate(patient.birth_date)],
+        ["CPF", patient.cpf],
+        ["Endereço", patient.address],
+        ["Telefone", patient.phone],
+        ["E-mail", patient.email],
+        ["Situação", patient.is_active ? "Ativo" : "Inativo"],
+      ],
+    },
+    {
+      title: "Acompanhamento",
+      rows: [
+        ["Data de avaliação", fmtDate(patient.assessment_date)],
+        ["Data de reavaliação", fmtDate(patient.reassessment_date)],
+        ["Saída da terapia", fmtDate(patient.therapy_end_date)],
+      ],
+    },
+    {
+      title: "Financeiro",
+      rows: [
+        ["Responsável financeiro", patient.financial_responsible_name],
+        ["CPF do responsável", patient.financial_responsible_cpf],
+        [
+          "Valor da sessão",
+          patient.session_price != null
+            ? patient.session_price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+            : null,
+        ],
+        ["Forma de cobrança", patient.billing_type === "mensal" ? "Mensal" : "Por sessão"],
+        ["Recibo de pagamento", patient.receipt_required ? "Sim" : "Não"],
+      ],
+    },
+    {
+      title: "Filiação",
+      rows: [
+        ["Nome do pai", patient.father_name],
+        ["Telefone do pai", patient.father_phone],
+        ["Nome da mãe", patient.mother_name],
+        ["Telefone da mãe", patient.mother_phone],
+      ],
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {groups.map((g) => {
+        const rows = g.rows.filter(([, v]) => v);
+        if (!rows.length) return null;
+        return (
+          <div key={g.title} className="rounded-2xl border border-border/60 bg-surface/40 p-4 md:p-5">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+              {g.title}
+            </div>
+            <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+              {rows.map(([k, v]) => (
+                <div key={k} className="min-w-0">
+                  <dt className="text-xs text-muted-foreground">{k}</dt>
+                  <dd className="text-sm break-words">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        );
+      })}
+      {patient.notes && (
+        <div className="rounded-2xl border border-border/60 bg-surface/40 p-4 md:p-5">
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+            Observação
+          </div>
+          <p className="text-sm whitespace-pre-wrap">{patient.notes}</p>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { ClientOnly } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { RecordEditor } from "@/components/app/RecordEditor";
+import { RecordAttachments } from "@/components/app/RecordAttachments";
 import { exportRecordAsPDF, exportRecordAsDOCX } from "@/lib/record-export";
 
 export const Route = createFileRoute("/_authenticated/app/prontuarios/$id")({
@@ -281,6 +282,10 @@ function RecordEditorPage() {
       <ClientOnly fallback={<EditorSkeleton />}>
         <RecordEditor content={content} onChange={handleEditorChange} patientName={patientName} />
       </ClientOnly>
+
+      {user && record && (
+        <RecordAttachments ownerId={user.id} recordId={record.id} patientId={record.patient_id} />
+      )}
 
       {showHistory && (
         <HistoryDrawer
