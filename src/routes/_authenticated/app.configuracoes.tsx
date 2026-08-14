@@ -2,6 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { Fingerprint } from "lucide-react";
+import {
+  biometricsSupported,
+  biometricsEnabled,
+  enableBiometrics,
+  disableBiometrics,
+} from "@/lib/biometrics";
 import { useAuth } from "@/hooks/use-auth";
 import { AvatarUpload } from "@/components/app/AvatarUpload";
 import { ThemeToggle } from "@/components/theme/ThemeProvider";
@@ -154,6 +161,69 @@ function SettingsPage() {
           </div>
         </form>
       )}
+
+      <BiometricSetting userLabel={user?.email ?? "Consultório"} />
+    </div>
+  );
+}
+
+function BiometricSetting({ userLabel }: { userLabel: string }) {
+  const [supported, setSupported] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setSupported(biometricsSupported());
+    setEnabled(biometricsEnabled());
+  }, []);
+
+  if (!supported) return null;
+
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      if (enabled) {
+        disableBiometrics();
+        setEnabled(false);
+        toast.success("Bloqueio por biometria desativado");
+      } else {
+        const ok = await enableBiometrics(userLabel);
+        if (ok) {
+          setEnabled(true);
+          toast.success("Biometria ativada neste aparelho");
+        } else {
+          toast.error("Não foi possível ativar a biometria");
+        }
+      }
+    } catch {
+      toast.error("Biometria cancelada ou indisponível neste aparelho");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="mt-6 rounded-2xl border border-border/60 bg-surface/40 p-5 md:p-6">
+      <div className="flex items-start gap-3">
+        <Fingerprint className="h-5 w-5 text-brand mt-0.5 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <h2 className="text-sm font-semibold">Abrir com biometria</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Mantém você conectada e usa a digital ou o Face ID deste aparelho para abrir o sistema,
+            sem digitar e-mail e senha.
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={toggle}
+        disabled={busy}
+        className={`mt-4 w-full sm:w-auto h-11 px-5 rounded-lg text-sm font-medium disabled:opacity-60 ${
+          enabled
+            ? "border border-border/60 hover:bg-surface"
+            : "bg-foreground text-background hover:opacity-90"
+        }`}
+      >
+        {busy ? "Aguardando..." : enabled ? "Desativar biometria" : "Ativar biometria"}
+      </button>
     </div>
   );
 }
