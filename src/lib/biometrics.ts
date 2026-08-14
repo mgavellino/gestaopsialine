@@ -29,27 +29,32 @@ function bufToB64(buf: ArrayBuffer): string {
   return btoa(String.fromCharCode(...new Uint8Array(buf)));
 }
 
-function b64ToBuf(b64: string): Uint8Array {
-  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+function b64ToBuf(b64: string): ArrayBuffer {
+  const bytes = new Uint8Array(new ArrayBuffer(b64.length));
+  const raw = atob(b64);
+  const out = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  void bytes;
+  return out.buffer;
 }
 
-function randomChallenge(): Uint8Array {
-  const bytes = new Uint8Array(32);
+function randomChallenge(): ArrayBuffer {
+  const bytes = new Uint8Array(new ArrayBuffer(32));
   crypto.getRandomValues(bytes);
-  return bytes;
+  return bytes.buffer;
 }
 
 /** Registra a biometria do aparelho. Retorna true se deu certo. */
 export async function enableBiometrics(userLabel: string): Promise<boolean> {
   if (!biometricsSupported()) return false;
-  const userId = new Uint8Array(16);
+  const userId = new Uint8Array(new ArrayBuffer(16));
   crypto.getRandomValues(userId);
 
   const credential = (await navigator.credentials.create({
     publicKey: {
       challenge: randomChallenge(),
       rp: { name: "Consultório", id: window.location.hostname },
-      user: { id: userId, name: userLabel, displayName: userLabel },
+      user: { id: userId.buffer, name: userLabel, displayName: userLabel },
       pubKeyCredParams: [
         { type: "public-key", alg: -7 },
         { type: "public-key", alg: -257 },
