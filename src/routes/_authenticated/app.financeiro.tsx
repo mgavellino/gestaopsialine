@@ -824,7 +824,6 @@ function FinanceiroPage() {
               <ul className="divide-y divide-border/50">
                 {filtered.map((r) => {
                   const ap = r.appointment_id ? appts[r.appointment_id] : undefined;
-                  const patient = r.patient_id ? patients[r.patient_id] : undefined;
                   const meta = STATUS_META[effStatus(r)];
                   const isPicking = payingId === r.id;
                   return (
