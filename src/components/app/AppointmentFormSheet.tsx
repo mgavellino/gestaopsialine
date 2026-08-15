@@ -173,15 +173,24 @@ export function AppointmentFormSheet({
       toast.success("Compromisso atualizado");
       onSaved();
     } else {
+      const step = repeat === "weekly" ? 1 : repeat === "biweekly" ? 2 : 0;
+      const times = repeat === "none" ? 1 : Math.max(1, Math.min(52, repeatCount));
+      const rows = Array.from({ length: times }, (_, i) => ({
+        ...payload,
+        owner_id: ownerId,
+        starts_at: addWeeks(new Date(starts), i * step).toISOString(),
+        ends_at: addWeeks(new Date(ends), i * step).toISOString(),
+      }));
       const { data, error } = await supabase
         .from("appointments")
-        .insert({ ...payload, owner_id: ownerId })
-        .select("*")
-        .single();
+        .insert(rows)
+        .select("*");
       setSaving(false);
       if (error) return toast.error(error.message);
-      toast.success("Compromisso agendado");
-      const created = data as unknown as Appointment;
+      toast.success(
+        times > 1 ? `${times} compromissos agendados` : "Compromisso agendado",
+      );
+      const created = (data?.[0] ?? null) as unknown as Appointment | null;
       if (needsPatient && created) {
         setSavedAppt(created);
         onSaved({ keepOpen: true });
