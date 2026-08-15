@@ -117,6 +117,8 @@ export function AppointmentFormSheet({
       setQuickOpen(false);
       setQuickName("");
       setQuickPhone("");
+      setRepeat("none");
+      setRepeatCount(8);
     }
   }, [open]);
 
