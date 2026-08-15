@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, addWeeks } from "date-fns";
 import {
   Sheet,
   SheetContent,
@@ -79,6 +79,8 @@ export function AppointmentFormSheet({
   const [quickName, setQuickName] = useState("");
   const [quickPhone, setQuickPhone] = useState("");
   const [creatingPatient, setCreatingPatient] = useState(false);
+  const [repeat, setRepeat] = useState<"none" | "weekly" | "biweekly">("none");
+  const [repeatCount, setRepeatCount] = useState(8);
 
   const allPatients = [...patients, ...localPatients.filter((lp) => !patients.some((p) => p.id === lp.id))];
   const currentAppt = appointment ?? savedAppt;
