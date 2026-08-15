@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, addWeeks } from "date-fns";
 import {
   Sheet,
   SheetContent,
@@ -79,6 +79,8 @@ export function AppointmentFormSheet({
   const [quickName, setQuickName] = useState("");
   const [quickPhone, setQuickPhone] = useState("");
   const [creatingPatient, setCreatingPatient] = useState(false);
+  const [repeat, setRepeat] = useState<"none" | "weekly" | "biweekly">("none");
+  const [repeatCount, setRepeatCount] = useState(8);
 
   const allPatients = [...patients, ...localPatients.filter((lp) => !patients.some((p) => p.id === lp.id))];
   const currentAppt = appointment ?? savedAppt;
@@ -115,6 +117,8 @@ export function AppointmentFormSheet({
       setQuickOpen(false);
       setQuickName("");
       setQuickPhone("");
+      setRepeat("none");
+      setRepeatCount(8);
     }
   }, [open]);
 
@@ -171,15 +175,24 @@ export function AppointmentFormSheet({
       toast.success("Compromisso atualizado");
       onSaved();
     } else {
+      const step = repeat === "weekly" ? 1 : repeat === "biweekly" ? 2 : 0;
+      const times = repeat === "none" ? 1 : Math.max(1, Math.min(52, repeatCount));
+      const rows = Array.from({ length: times }, (_, i) => ({
+        ...payload,
+        owner_id: ownerId,
+        starts_at: addWeeks(new Date(starts), i * step).toISOString(),
+        ends_at: addWeeks(new Date(ends), i * step).toISOString(),
+      }));
       const { data, error } = await supabase
         .from("appointments")
-        .insert({ ...payload, owner_id: ownerId })
-        .select("*")
-        .single();
+        .insert(rows)
+        .select("*");
       setSaving(false);
       if (error) return toast.error(error.message);
-      toast.success("Compromisso agendado");
-      const created = data as unknown as Appointment;
+      toast.success(
+        times > 1 ? `${times} compromissos agendados` : "Compromisso agendado",
+      );
+      const created = (data?.[0] ?? null) as unknown as Appointment | null;
       if (needsPatient && created) {
         setSavedAppt(created);
         onSaved({ keepOpen: true });
@@ -337,6 +350,42 @@ export function AppointmentFormSheet({
               <option value="cancelled">Cancelada</option>
             </select>
           </Field>
+
+          {!appointment && (
+            <div className="rounded-xl border border-border/60 bg-surface/40 p-3 space-y-3">
+              <Field label="Repetir (horário fixo)">
+                <select
+                  value={repeat}
+                  onChange={(e) => setRepeat(e.target.value as typeof repeat)}
+                  className={inputCls}
+                >
+                  <option value="none">Não repetir</option>
+                  <option value="weekly">Toda semana (mesmo dia e hora)</option>
+                  <option value="biweekly">A cada 15 dias</option>
+                </select>
+              </Field>
+              {repeat !== "none" && (
+                <Field label="Quantas vezes (incluindo a primeira)">
+                  <input
+                    type="number"
+                    min={2}
+                    max={52}
+                    inputMode="numeric"
+                    value={repeatCount}
+                    onChange={(e) => setRepeatCount(Number(e.target.value))}
+                    className={inputCls}
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {repeat === "weekly"
+                      ? `Serão criados ${Math.max(1, Math.min(52, repeatCount))} encontros semanais.`
+                      : `Serão criados ${Math.max(1, Math.min(52, repeatCount))} encontros quinzenais.`}
+                  </p>
+                </Field>
+              )}
+            </div>
+          )}
+
+
 
           <Field label="Observações">
             <textarea
