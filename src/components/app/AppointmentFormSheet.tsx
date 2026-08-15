@@ -349,6 +349,42 @@ export function AppointmentFormSheet({
             </select>
           </Field>
 
+          {!appointment && (
+            <div className="rounded-xl border border-border/60 bg-surface/40 p-3 space-y-3">
+              <Field label="Repetir (horário fixo)">
+                <select
+                  value={repeat}
+                  onChange={(e) => setRepeat(e.target.value as typeof repeat)}
+                  className={inputCls}
+                >
+                  <option value="none">Não repetir</option>
+                  <option value="weekly">Toda semana (mesmo dia e hora)</option>
+                  <option value="biweekly">A cada 15 dias</option>
+                </select>
+              </Field>
+              {repeat !== "none" && (
+                <Field label="Quantas vezes (incluindo a primeira)">
+                  <input
+                    type="number"
+                    min={2}
+                    max={52}
+                    inputMode="numeric"
+                    value={repeatCount}
+                    onChange={(e) => setRepeatCount(Number(e.target.value))}
+                    className={inputCls}
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {repeat === "weekly"
+                      ? `Serão criados ${Math.max(1, Math.min(52, repeatCount))} encontros semanais.`
+                      : `Serão criados ${Math.max(1, Math.min(52, repeatCount))} encontros quinzenais.`}
+                  </p>
+                </Field>
+              )}
+            </div>
+          )}
+
+
+
           <Field label="Observações">
             <textarea
               rows={3}
