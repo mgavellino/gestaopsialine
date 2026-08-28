@@ -61,7 +61,7 @@ type Receivable = {
   payment_method: string | null;
   notes: string | null;
   description: string | null;
-  is_monthly: boolean | null;
+  is_monthly: boolean;
   owner_id: string;
 };
 
