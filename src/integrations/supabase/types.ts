@@ -22,6 +22,7 @@ export type Database = {
           description: string | null
           due_at: string | null
           id: string
+          is_monthly: boolean
           notes: string | null
           owner_id: string
           paid_at: string | null
@@ -37,6 +38,7 @@ export type Database = {
           description?: string | null
           due_at?: string | null
           id?: string
+          is_monthly?: boolean
           notes?: string | null
           owner_id: string
           paid_at?: string | null
@@ -52,6 +54,7 @@ export type Database = {
           description?: string | null
           due_at?: string | null
           id?: string
+          is_monthly?: boolean
           notes?: string | null
           owner_id?: string
           paid_at?: string | null
@@ -114,6 +117,7 @@ export type Database = {
           notes: string | null
           owner_id: string
           patient_id: string | null
+          series_id: string | null
           starts_at: string
           status: Database["public"]["Enums"]["appointment_status"]
           title: string | null
@@ -128,6 +132,7 @@ export type Database = {
           notes?: string | null
           owner_id: string
           patient_id?: string | null
+          series_id?: string | null
           starts_at: string
           status?: Database["public"]["Enums"]["appointment_status"]
           title?: string | null
@@ -142,6 +147,7 @@ export type Database = {
           notes?: string | null
           owner_id?: string
           patient_id?: string | null
+          series_id?: string | null
           starts_at?: string
           status?: Database["public"]["Enums"]["appointment_status"]
           title?: string | null
