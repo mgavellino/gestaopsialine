@@ -8,6 +8,8 @@ import {
   biometricsEnabled,
   enableBiometrics,
   disableBiometrics,
+  platformBiometricsAvailable,
+  biometricErrorMessage,
 } from "@/lib/biometrics";
 import { useAuth } from "@/hooks/use-auth";
 import { AvatarUpload } from "@/components/app/AvatarUpload";
@@ -169,12 +171,14 @@ function SettingsPage() {
 
 function BiometricSetting({ userLabel }: { userLabel: string }) {
   const [supported, setSupported] = useState(false);
+  const [available, setAvailable] = useState(true);
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setSupported(biometricsSupported());
     setEnabled(biometricsEnabled());
+    void platformBiometricsAvailable().then(setAvailable);
   }, []);
 
   if (!supported) return null;
@@ -195,8 +199,8 @@ function BiometricSetting({ userLabel }: { userLabel: string }) {
           toast.error("Não foi possível ativar a biometria");
         }
       }
-    } catch {
-      toast.error("Biometria cancelada ou indisponível neste aparelho");
+    } catch (err) {
+      toast.error(biometricErrorMessage(err));
     }
     setBusy(false);
   };
@@ -211,6 +215,13 @@ function BiometricSetting({ userLabel }: { userLabel: string }) {
             Mantém você conectada e usa a digital ou o Face ID deste aparelho para abrir o sistema,
             sem digitar e-mail e senha.
           </p>
+          {!available && (
+            <p className="mt-2 text-xs text-amber-600">
+              Este navegador não encontrou a biometria do aparelho. No Android, cadastre a digital
+              nas configurações do celular e abra o sistema pelo Chrome (ou pelo atalho instalado na
+              tela inicial).
+            </p>
+          )}
         </div>
       </div>
       <button
