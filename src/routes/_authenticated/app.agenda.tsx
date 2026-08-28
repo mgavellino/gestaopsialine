@@ -53,7 +53,18 @@ function AgendaPage() {
   const visibleDays = isMobile ? [days[Math.min(dayIndex, 6)]] : days;
 
 
+  /** Consultas agendadas cujo horário já terminou passam a "Realizada" automaticamente. */
+  const autoCompletePast = async () => {
+    await supabase
+      .from("appointments")
+      .update({ status: "completed" })
+      .eq("kind", "consulta")
+      .eq("status", "scheduled")
+      .lt("ends_at", new Date().toISOString());
+  };
+
   const load = async () => {
+    await autoCompletePast();
     const from = days[0].toISOString();
     const to = addDays(days[6], 1).toISOString();
     const [a, p] = await Promise.all([
