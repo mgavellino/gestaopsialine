@@ -869,6 +869,11 @@ function FinanceiroPage() {
                             {r.payment_method ? ` · ${methodLabel(r.payment_method)}` : ""}
                           </div>
                         </div>
+                        {r.is_monthly && (
+                          <span className="text-[11px] px-2 py-1 rounded-full border shrink-0 border-brand/40 bg-brand/10 text-brand">
+                            Mensal
+                          </span>
+                        )}
                         <span className={`text-[11px] px-2 py-1 rounded-full border shrink-0 ${meta.cls}`}>
                           {meta.label}
                         </span>
