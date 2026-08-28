@@ -61,6 +61,7 @@ type Receivable = {
   payment_method: string | null;
   notes: string | null;
   description: string | null;
+  is_monthly: boolean | null;
   owner_id: string;
 };
 
@@ -76,6 +77,7 @@ type AppointmentLite = {
 
 type PatientLite = { id: string; full_name: string };
 type StatusFilter = "all" | "pending" | "paid" | "overdue" | "waived";
+type KindFilter = "all" | "monthly" | "session";
 
 type Expense = {
   id: string;
@@ -139,6 +141,7 @@ function FinanceiroPage() {
   const [appts, setAppts] = useState<Record<string, AppointmentLite>>({});
   const [patients, setPatients] = useState<Record<string, PatientLite>>({});
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [search, setSearch] = useState("");
   const [period, setPeriod] = useState<Period>(() => currentPeriod("mes"));
   const [defaultPrice, setDefaultPrice] = useState<string>("");
@@ -191,6 +194,7 @@ function FinanceiroPage() {
         due_at: iso,
         paid_at: isPaid ? iso : null,
         payment_method: isPaid ? incomeForm.payment_method : null,
+        is_monthly: incomeForm.monthly,
       };
     });
 
@@ -290,10 +294,12 @@ function FinanceiroPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = filter === "all" ? periodReceivables : periodReceivables.filter((r) => effStatus(r) === filter);
+    if (kindFilter === "monthly") list = list.filter((r) => !!r.is_monthly);
+    if (kindFilter === "session") list = list.filter((r) => !r.is_monthly);
     if (q) list = list.filter((r) => nameOf(r).toLowerCase().includes(q));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodReceivables, filter, search, patients, allPatients]);
+  }, [periodReceivables, filter, kindFilter, search, patients, allPatients]);
 
   const counts = useMemo(() => {
     const c: Record<StatusFilter, number> = {
@@ -661,6 +667,27 @@ function FinanceiroPage() {
               <Plus className="h-3.5 w-3.5" />
               Nova receita
             </button>
+          </div>
+
+          <div className="mb-3 flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground">Tipo:</span>
+            {([
+              ["all", "Todos"],
+              ["monthly", "Mensal"],
+              ["session", "Por sessão"],
+            ] as [KindFilter, string][]).map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => setKindFilter(k)}
+                className={`px-3 h-8 rounded-full text-xs whitespace-nowrap border transition-colors ${
+                  kindFilter === k
+                    ? "bg-foreground text-background border-foreground"
+                    : "border-border/60 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           <div className="relative mb-3">
