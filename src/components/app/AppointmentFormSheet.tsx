@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { format, addWeeks } from "date-fns";
+import { format, addWeeks, endOfMonth, isSameDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   Sheet,
   SheetContent,
@@ -10,8 +11,9 @@ import {
 } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 import type { Patient } from "./PatientFormSheet";
-import { Trash2, MessageCircle } from "lucide-react";
+import { Trash2, MessageCircle, Search, X } from "lucide-react";
 import { waLink, reminderMessage, confirmationMessage } from "@/lib/whatsapp";
+import { parseMoneyToCents, centsToInput } from "@/lib/money";
 
 export type AppointmentKind = "consulta" | "reuniao" | "supervisao" | "pessoal" | "outro";
 export type AppointmentStatus = "scheduled" | "completed" | "cancelled" | "no_show";
@@ -27,6 +29,7 @@ export type Appointment = {
   kind: AppointmentKind;
   custom_kind: string | null;
   notes: string | null;
+  series_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -54,6 +57,10 @@ function toLocalInput(d: Date) {
   return format(d, "yyyy-MM-dd'T'HH:mm");
 }
 
+function monthKey(d: Date) {
+  return `${d.getFullYear()}-${d.getMonth()}`;
+}
+
 export function AppointmentFormSheet({
   open,
   onOpenChange,
@@ -67,6 +74,7 @@ export function AppointmentFormSheet({
   const [kind, setKind] = useState<AppointmentKind>("consulta");
   const [customKind, setCustomKind] = useState("");
   const [patientId, setPatientId] = useState("");
+  const [patientSearch, setPatientSearch] = useState("");
   const [title, setTitle] = useState("Sessão");
   const [starts, setStarts] = useState("");
   const [ends, setEnds] = useState("");
@@ -81,9 +89,24 @@ export function AppointmentFormSheet({
   const [creatingPatient, setCreatingPatient] = useState(false);
   const [repeat, setRepeat] = useState<"none" | "weekly" | "biweekly">("none");
   const [repeatCount, setRepeatCount] = useState(8);
+  const [billing, setBilling] = useState<"none" | "sessao" | "mensal">("none");
+  const [billAmount, setBillAmount] = useState("");
+  const [defaultPriceCents, setDefaultPriceCents] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
-  const allPatients = [...patients, ...localPatients.filter((lp) => !patients.some((p) => p.id === lp.id))];
+  const allPatients = useMemo(
+    () => [...patients, ...localPatients.filter((lp) => !patients.some((p) => p.id === lp.id))],
+    [patients, localPatients],
+  );
   const currentAppt = appointment ?? savedAppt;
+  const selectedPatient = allPatients.find((p) => p.id === patientId) ?? null;
+
+  const filteredPatients = useMemo(() => {
+    const q = patientSearch.trim().toLowerCase();
+    if (!q) return allPatients;
+    return allPatients.filter((p) => p.full_name.toLowerCase().includes(q));
+  }, [allPatients, patientSearch]);
 
   useEffect(() => {
     if (appointment) {
@@ -119,8 +142,44 @@ export function AppointmentFormSheet({
       setQuickPhone("");
       setRepeat("none");
       setRepeatCount(8);
+      setBilling("none");
+      setPatientSearch("");
+      setDeleteOpen(false);
     }
   }, [open]);
+
+  // Valor padrão da consulta (perfil) para pré-preencher a cobrança
+  useEffect(() => {
+    if (!open || !ownerId) return;
+    supabase
+      .from("profiles")
+      .select("default_session_price_cents")
+      .eq("id", ownerId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const v = (data as { default_session_price_cents?: number } | null)
+          ?.default_session_price_cents;
+        if (typeof v === "number" && v > 0) setDefaultPriceCents(v);
+      });
+  }, [open, ownerId]);
+
+  // Preenche o valor conforme o paciente selecionado
+  useEffect(() => {
+    const fromPatient =
+      selectedPatient?.session_price != null
+        ? Math.round(Number(selectedPatient.session_price) * 100)
+        : null;
+    const cents = fromPatient && fromPatient > 0 ? fromPatient : defaultPriceCents;
+    if (cents && cents > 0) setBillAmount(centsToInput(cents));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId, defaultPriceCents]);
+
+  // Sugere a forma de cobrança do cadastro do paciente
+  useEffect(() => {
+    if (appointment) return;
+    if (selectedPatient?.billing_type === "mensal") setBilling("mensal");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
 
   const createQuickPatient = async () => {
     if (!ownerId) return;
@@ -139,10 +198,76 @@ export function AppointmentFormSheet({
     setQuickOpen(false);
     setQuickName("");
     setQuickPhone("");
+    setPatientSearch("");
     toast.success("Paciente criado — complete o cadastro depois em Pacientes");
   };
 
   const needsPatient = kind === "consulta";
+
+  /** Cria os recebíveis das sessões criadas (por sessão ou mensalidade). */
+  const createReceivables = async (
+    created: Appointment[],
+    amountCents: number,
+    mode: "sessao" | "mensal",
+    pid: string,
+  ) => {
+    if (!ownerId || !created.length || !amountCents) return;
+    const patientName = allPatients.find((p) => p.id === pid)?.full_name ?? "Paciente";
+
+    if (mode === "sessao") {
+      const rows = created.map((a) => ({
+        owner_id: ownerId,
+        appointment_id: a.id,
+        patient_id: pid,
+        description: `Sessão ${format(new Date(a.starts_at), "dd/MM/yyyy")} — ${patientName}`,
+        amount_cents: amountCents,
+        status: "pending" as const,
+        due_at: a.starts_at,
+        is_monthly: false,
+      }));
+      const { error } = await supabase.from("appointment_receivables").insert(rows);
+      if (error) toast.error(`Sessões criadas, mas houve erro na cobrança: ${error.message}`);
+      return;
+    }
+
+    // Mensal: cada sessão fica isenta (já incluída na mensalidade) e criamos 1 cobrança por mês.
+    const perSession = created.map((a) => ({
+      owner_id: ownerId,
+      appointment_id: a.id,
+      patient_id: pid,
+      description: "Incluída na mensalidade",
+      amount_cents: 0,
+      status: "waived" as const,
+      due_at: a.starts_at,
+      is_monthly: false,
+    }));
+
+    const groups = new Map<string, Appointment[]>();
+    for (const a of created) {
+      const k = monthKey(new Date(a.starts_at));
+      groups.set(k, [...(groups.get(k) ?? []), a]);
+    }
+    const monthly = Array.from(groups.values()).map((list) => {
+      const first = new Date(list[0].starts_at);
+      const due = endOfMonth(first);
+      due.setHours(12, 0, 0, 0);
+      return {
+        owner_id: ownerId,
+        appointment_id: null,
+        patient_id: pid,
+        description: `Mensalidade ${format(first, "MMMM/yyyy", { locale: ptBR })} — ${patientName} (${list.length} sessões)`,
+        amount_cents: amountCents * list.length,
+        status: "pending" as const,
+        due_at: due.toISOString(),
+        is_monthly: true,
+      };
+    });
+
+    const { error } = await supabase
+      .from("appointment_receivables")
+      .insert([...perSession, ...monthly]);
+    if (error) toast.error(`Sessões criadas, mas houve erro na mensalidade: ${error.message}`);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,6 +277,11 @@ export function AppointmentFormSheet({
     if (new Date(ends) <= new Date(starts))
       return toast.error("O término deve ser após o início");
     if (!ownerId) return;
+
+    const wantsBilling = !appointment && needsPatient && billing !== "none";
+    const amountCents = wantsBilling ? parseMoneyToCents(billAmount) : 0;
+    if (wantsBilling && (Number.isNaN(amountCents) || amountCents <= 0))
+      return toast.error("Informe o valor da sessão para gerar a cobrança");
 
     setSaving(true);
     const payload = {
@@ -177,9 +307,11 @@ export function AppointmentFormSheet({
     } else {
       const step = repeat === "weekly" ? 1 : repeat === "biweekly" ? 2 : 0;
       const times = repeat === "none" ? 1 : Math.max(1, Math.min(52, repeatCount));
+      const seriesId = times > 1 ? crypto.randomUUID() : null;
       const rows = Array.from({ length: times }, (_, i) => ({
         ...payload,
         owner_id: ownerId,
+        series_id: seriesId,
         starts_at: addWeeks(new Date(starts), i * step).toISOString(),
         ends_at: addWeeks(new Date(ends), i * step).toISOString(),
       }));
@@ -187,12 +319,26 @@ export function AppointmentFormSheet({
         .from("appointments")
         .insert(rows)
         .select("*");
+      if (error) {
+        setSaving(false);
+        return toast.error(error.message);
+      }
+      const createdList = ((data ?? []) as unknown as Appointment[]).sort(
+        (a, b) => +new Date(a.starts_at) - +new Date(b.starts_at),
+      );
+      if (wantsBilling && createdList.length) {
+        await createReceivables(
+          createdList.filter((a) => a.status !== "cancelled"),
+          amountCents,
+          billing === "mensal" ? "mensal" : "sessao",
+          patientId,
+        );
+      }
       setSaving(false);
-      if (error) return toast.error(error.message);
       toast.success(
         times > 1 ? `${times} compromissos agendados` : "Compromisso agendado",
       );
-      const created = (data?.[0] ?? null) as unknown as Appointment | null;
+      const created = createdList[0] ?? null;
       if (needsPatient && created) {
         setSavedAppt(created);
         onSaved({ keepOpen: true });
@@ -202,16 +348,77 @@ export function AppointmentFormSheet({
     }
   };
 
-  const handleDelete = async () => {
+  /** Remove só este, ou este e todos os próximos do mesmo horário fixo. */
+  const runDelete = async (scope: "one" | "future") => {
     if (!appointment) return;
-    if (!confirm("Remover este compromisso?")) return;
-    const { error } = await supabase
-      .from("appointments")
-      .delete()
-      .eq("id", appointment.id);
-    if (error) return toast.error(error.message);
-    toast.success("Compromisso removido");
-    onDeleted();
+    setDeleting(true);
+    try {
+      if (scope === "one") {
+        if (!confirm("Remover este compromisso?")) return;
+        const { error } = await supabase.from("appointments").delete().eq("id", appointment.id);
+        if (error) throw new Error(error.message);
+        toast.success("Compromisso removido");
+        onDeleted();
+        return;
+      }
+
+      let ids: string[] = [];
+      if (appointment.series_id) {
+        const { data, error } = await supabase
+          .from("appointments")
+          .select("id")
+          .eq("series_id", appointment.series_id)
+          .gte("starts_at", appointment.starts_at);
+        if (error) throw new Error(error.message);
+        ids = ((data ?? []) as { id: string }[]).map((r) => r.id);
+      } else {
+        // Sem série: pega os próximos do mesmo paciente, mesmo dia da semana e mesma hora.
+        const ref = new Date(appointment.starts_at);
+        const q = supabase
+          .from("appointments")
+          .select("id, starts_at, patient_id, title")
+          .gte("starts_at", appointment.starts_at);
+        const { data, error } = appointment.patient_id
+          ? await q.eq("patient_id", appointment.patient_id)
+          : await q.is("patient_id", null);
+        if (error) throw new Error(error.message);
+        ids = ((data ?? []) as { id: string; starts_at: string }[])
+          .filter((r) => {
+            const d = new Date(r.starts_at);
+            return (
+              d.getDay() === ref.getDay() &&
+              d.getHours() === ref.getHours() &&
+              d.getMinutes() === ref.getMinutes()
+            );
+          })
+          .map((r) => r.id);
+      }
+
+      if (!ids.length) return toast.error("Nenhum compromisso encontrado");
+      if (
+        !confirm(
+          `Remover ${ids.length} compromisso${ids.length > 1 ? "s" : ""} (este e os próximos)? Isso também remove as cobranças ainda não pagas ligadas a eles.`,
+        )
+      )
+        return;
+
+      // Remove cobranças pendentes ligadas a essas sessões (não mexe no que já foi pago)
+      await supabase
+        .from("appointment_receivables")
+        .delete()
+        .in("appointment_id", ids)
+        .neq("status", "paid");
+
+      const { error: delErr } = await supabase.from("appointments").delete().in("id", ids);
+      if (delErr) throw new Error(delErr.message);
+      toast.success(`${ids.length} compromissos removidos`);
+      onDeleted();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao remover");
+    } finally {
+      setDeleting(false);
+      setDeleteOpen(false);
+    }
   };
 
   return (
@@ -254,18 +461,70 @@ export function AppointmentFormSheet({
 
           {needsPatient && (
             <Field label="Paciente *">
-              <select
-                value={patientId}
-                onChange={(e) => setPatientId(e.target.value)}
-                className={inputCls}
-              >
-                <option value="">Selecione...</option>
-                {allPatients.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative mb-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  value={patientSearch}
+                  onChange={(e) => setPatientSearch(e.target.value)}
+                  placeholder="Buscar paciente pelo nome"
+                  className={`${inputCls} pl-9 pr-9`}
+                />
+                {patientSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setPatientSearch("")}
+                    aria-label="Limpar busca"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {patientSearch.trim() ? (
+                <div className="max-h-44 overflow-y-auto rounded-lg border border-border/60 divide-y divide-border/40">
+                  {filteredPatients.length === 0 && (
+                    <div className="px-3 py-2 text-xs text-muted-foreground">
+                      Nenhum paciente encontrado
+                    </div>
+                  )}
+                  {filteredPatients.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        setPatientId(p.id);
+                        setPatientSearch("");
+                      }}
+                      className={`block w-full text-left px-3 py-2 text-sm hover:bg-surface ${
+                        p.id === patientId ? "bg-surface font-medium" : ""
+                      }`}
+                    >
+                      {p.full_name}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <select
+                  value={patientId}
+                  onChange={(e) => setPatientId(e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">Selecione...</option>
+                  {allPatients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {selectedPatient && (
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Selecionado: <span className="text-foreground">{selectedPatient.full_name}</span>
+                </p>
+              )}
+
               {!quickOpen ? (
                 <button
                   type="button"
@@ -385,7 +644,40 @@ export function AppointmentFormSheet({
             </div>
           )}
 
-
+          {!appointment && needsPatient && (
+            <div className="rounded-xl border border-border/60 bg-surface/40 p-3 space-y-3">
+              <Field label="Cobrança">
+                <select
+                  value={billing}
+                  onChange={(e) => setBilling(e.target.value as typeof billing)}
+                  className={inputCls}
+                >
+                  <option value="none">Não gerar cobrança agora</option>
+                  <option value="sessao">Por sessão (vence no dia da sessão)</option>
+                  <option value="mensal">Mensal (paga todas as sessões no fim do mês)</option>
+                </select>
+              </Field>
+              {billing !== "none" && (
+                <Field label="Valor da sessão (R$)">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    enterKeyHint="done"
+                    autoComplete="off"
+                    value={billAmount}
+                    onChange={(e) => setBillAmount(e.target.value)}
+                    placeholder="200,00"
+                    className={inputCls}
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {billing === "mensal"
+                      ? "Será criada uma mensalidade por mês, somando as sessões daquele mês, com vencimento no último dia do mês."
+                      : "Será criada uma cobrança por sessão, com vencimento no dia da sessão."}
+                  </p>
+                </Field>
+              )}
+            </div>
+          )}
 
           <Field label="Observações">
             <textarea
@@ -422,12 +714,39 @@ export function AppointmentFormSheet({
             );
           })()}
 
+          {appointment && deleteOpen && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+              <div className="text-xs font-medium text-destructive">O que você quer remover?</div>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => runDelete("one")}
+                className="w-full h-10 rounded-lg border border-border/60 text-sm hover:bg-surface disabled:opacity-60"
+              >
+                Só este compromisso
+                {isSameDay(new Date(appointment.starts_at), new Date()) ? " (hoje)" : ""}
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => runDelete("future")}
+                className="w-full h-10 rounded-lg bg-destructive text-white text-sm font-medium disabled:opacity-60"
+              >
+                Este e todos os próximos deste horário
+              </button>
+              <p className="text-[11px] text-muted-foreground">
+                A segunda opção apaga de uma vez as próximas semanas
+                {appointment.patient_id ? " deste paciente" : ""} no mesmo dia da semana e horário.
+                Cobranças já recebidas não são apagadas.
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-2 pt-2">
             {appointment ? (
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => setDeleteOpen((v) => !v)}
                 className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg text-sm text-destructive hover:bg-destructive/10 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
