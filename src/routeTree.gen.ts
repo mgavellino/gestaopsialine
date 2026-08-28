@@ -9,39 +9,33 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as PainelMigracaoRouteImport } from './routes/painel-migracao'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PainelMigracaoRouteImport } from './routes/painel-migracao'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
-import { Route as AuthenticatedAppListaEsperaRouteImport } from './routes/_authenticated/app.lista-espera'
-import { Route as AuthenticatedAppFinanceiroRouteImport } from './routes/_authenticated/app.financeiro'
-import { Route as AuthenticatedAppEncaminhamentosRouteImport } from './routes/_authenticated/app.encaminhamentos'
-import { Route as AuthenticatedAppConfiguracoesRouteImport } from './routes/_authenticated/app.configuracoes'
-import { Route as AuthenticatedAppBloqueiosRouteImport } from './routes/_authenticated/app.bloqueios'
-import { Route as AuthenticatedAppBibliotecaRouteImport } from './routes/_authenticated/app.biblioteca'
 import { Route as AuthenticatedAppAgendaRouteImport } from './routes/_authenticated/app.agenda'
-import { Route as AuthenticatedAppProntuariosIndexRouteImport } from './routes/_authenticated/app.prontuarios.index'
+import { Route as AuthenticatedAppBibliotecaRouteImport } from './routes/_authenticated/app.biblioteca'
+import { Route as AuthenticatedAppBloqueiosRouteImport } from './routes/_authenticated/app.bloqueios'
+import { Route as AuthenticatedAppConfiguracoesRouteImport } from './routes/_authenticated/app.configuracoes'
+import { Route as AuthenticatedAppEncaminhamentosRouteImport } from './routes/_authenticated/app.encaminhamentos'
+import { Route as AuthenticatedAppFinanceiroRouteImport } from './routes/_authenticated/app.financeiro'
+import { Route as AuthenticatedAppListaEsperaRouteImport } from './routes/_authenticated/app.lista-espera'
 import { Route as AuthenticatedAppPacientesIndexRouteImport } from './routes/_authenticated/app.pacientes.index'
-import { Route as AuthenticatedAppProntuariosIdRouteImport } from './routes/_authenticated/app.prontuarios.$id'
 import { Route as AuthenticatedAppPacientesIdRouteImport } from './routes/_authenticated/app.pacientes.$id'
+import { Route as AuthenticatedAppProntuariosIndexRouteImport } from './routes/_authenticated/app.prontuarios.index'
+import { Route as AuthenticatedAppProntuariosIdRouteImport } from './routes/_authenticated/app.prontuarios.$id'
 
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PainelMigracaoRoute = PainelMigracaoRouteImport.update({
-  id: '/painel-migracao',
-  path: '/painel-migracao',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -49,13 +43,19 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const PainelMigracaoRoute = PainelMigracaoRouteImport.update({
+  id: '/painel-migracao',
+  path: '/painel-migracao',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
@@ -68,28 +68,15 @@ const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppListaEsperaRoute =
-  AuthenticatedAppListaEsperaRouteImport.update({
-    id: '/lista-espera',
-    path: '/lista-espera',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppFinanceiroRoute =
-  AuthenticatedAppFinanceiroRouteImport.update({
-    id: '/financeiro',
-    path: '/financeiro',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppEncaminhamentosRoute =
-  AuthenticatedAppEncaminhamentosRouteImport.update({
-    id: '/encaminhamentos',
-    path: '/encaminhamentos',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppConfiguracoesRoute =
-  AuthenticatedAppConfiguracoesRouteImport.update({
-    id: '/configuracoes',
-    path: '/configuracoes',
+const AuthenticatedAppAgendaRoute = AuthenticatedAppAgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppBibliotecaRoute =
+  AuthenticatedAppBibliotecaRouteImport.update({
+    id: '/biblioteca',
+    path: '/biblioteca',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppBloqueiosRoute =
@@ -98,21 +85,28 @@ const AuthenticatedAppBloqueiosRoute =
     path: '/bloqueios',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppBibliotecaRoute =
-  AuthenticatedAppBibliotecaRouteImport.update({
-    id: '/biblioteca',
-    path: '/biblioteca',
+const AuthenticatedAppConfiguracoesRoute =
+  AuthenticatedAppConfiguracoesRouteImport.update({
+    id: '/configuracoes',
+    path: '/configuracoes',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppAgendaRoute = AuthenticatedAppAgendaRouteImport.update({
-  id: '/agenda',
-  path: '/agenda',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppProntuariosIndexRoute =
-  AuthenticatedAppProntuariosIndexRouteImport.update({
-    id: '/prontuarios/',
-    path: '/prontuarios/',
+const AuthenticatedAppEncaminhamentosRoute =
+  AuthenticatedAppEncaminhamentosRouteImport.update({
+    id: '/encaminhamentos',
+    path: '/encaminhamentos',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppFinanceiroRoute =
+  AuthenticatedAppFinanceiroRouteImport.update({
+    id: '/financeiro',
+    path: '/financeiro',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppListaEsperaRoute =
+  AuthenticatedAppListaEsperaRouteImport.update({
+    id: '/lista-espera',
+    path: '/lista-espera',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppPacientesIndexRoute =
@@ -121,16 +115,22 @@ const AuthenticatedAppPacientesIndexRoute =
     path: '/pacientes/',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppProntuariosIdRoute =
-  AuthenticatedAppProntuariosIdRouteImport.update({
-    id: '/prontuarios/$id',
-    path: '/prontuarios/$id',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
 const AuthenticatedAppPacientesIdRoute =
   AuthenticatedAppPacientesIdRouteImport.update({
     id: '/pacientes/$id',
     path: '/pacientes/$id',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppProntuariosIndexRoute =
+  AuthenticatedAppProntuariosIndexRouteImport.update({
+    id: '/prontuarios/',
+    path: '/prontuarios/',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppProntuariosIdRoute =
+  AuthenticatedAppProntuariosIdRouteImport.update({
+    id: '/prontuarios/$id',
+    path: '/prontuarios/$id',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 
@@ -269,32 +269,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/painel-migracao': {
-      id: '/painel-migracao'
-      path: '/painel-migracao'
-      fullPath: '/painel-migracao'
-      preLoaderRoute: typeof PainelMigracaoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -304,11 +283,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/painel-migracao': {
+      id: '/painel-migracao'
+      path: '/painel-migracao'
+      fullPath: '/painel-migracao'
+      preLoaderRoute: typeof PainelMigracaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app': {
@@ -325,39 +325,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/lista-espera': {
-      id: '/_authenticated/app/lista-espera'
-      path: '/lista-espera'
-      fullPath: '/app/lista-espera'
-      preLoaderRoute: typeof AuthenticatedAppListaEsperaRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/financeiro': {
-      id: '/_authenticated/app/financeiro'
-      path: '/financeiro'
-      fullPath: '/app/financeiro'
-      preLoaderRoute: typeof AuthenticatedAppFinanceiroRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/encaminhamentos': {
-      id: '/_authenticated/app/encaminhamentos'
-      path: '/encaminhamentos'
-      fullPath: '/app/encaminhamentos'
-      preLoaderRoute: typeof AuthenticatedAppEncaminhamentosRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/configuracoes': {
-      id: '/_authenticated/app/configuracoes'
-      path: '/configuracoes'
-      fullPath: '/app/configuracoes'
-      preLoaderRoute: typeof AuthenticatedAppConfiguracoesRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/bloqueios': {
-      id: '/_authenticated/app/bloqueios'
-      path: '/bloqueios'
-      fullPath: '/app/bloqueios'
-      preLoaderRoute: typeof AuthenticatedAppBloqueiosRouteImport
+    '/_authenticated/app/agenda': {
+      id: '/_authenticated/app/agenda'
+      path: '/agenda'
+      fullPath: '/app/agenda'
+      preLoaderRoute: typeof AuthenticatedAppAgendaRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/biblioteca': {
@@ -367,18 +339,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppBibliotecaRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/agenda': {
-      id: '/_authenticated/app/agenda'
-      path: '/agenda'
-      fullPath: '/app/agenda'
-      preLoaderRoute: typeof AuthenticatedAppAgendaRouteImport
+    '/_authenticated/app/bloqueios': {
+      id: '/_authenticated/app/bloqueios'
+      path: '/bloqueios'
+      fullPath: '/app/bloqueios'
+      preLoaderRoute: typeof AuthenticatedAppBloqueiosRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/prontuarios/': {
-      id: '/_authenticated/app/prontuarios/'
-      path: '/prontuarios'
-      fullPath: '/app/prontuarios/'
-      preLoaderRoute: typeof AuthenticatedAppProntuariosIndexRouteImport
+    '/_authenticated/app/configuracoes': {
+      id: '/_authenticated/app/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/app/configuracoes'
+      preLoaderRoute: typeof AuthenticatedAppConfiguracoesRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/encaminhamentos': {
+      id: '/_authenticated/app/encaminhamentos'
+      path: '/encaminhamentos'
+      fullPath: '/app/encaminhamentos'
+      preLoaderRoute: typeof AuthenticatedAppEncaminhamentosRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/financeiro': {
+      id: '/_authenticated/app/financeiro'
+      path: '/financeiro'
+      fullPath: '/app/financeiro'
+      preLoaderRoute: typeof AuthenticatedAppFinanceiroRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/lista-espera': {
+      id: '/_authenticated/app/lista-espera'
+      path: '/lista-espera'
+      fullPath: '/app/lista-espera'
+      preLoaderRoute: typeof AuthenticatedAppListaEsperaRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/pacientes/': {
@@ -388,18 +381,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppPacientesIndexRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/prontuarios/$id': {
-      id: '/_authenticated/app/prontuarios/$id'
-      path: '/prontuarios/$id'
-      fullPath: '/app/prontuarios/$id'
-      preLoaderRoute: typeof AuthenticatedAppProntuariosIdRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
     '/_authenticated/app/pacientes/$id': {
       id: '/_authenticated/app/pacientes/$id'
       path: '/pacientes/$id'
       fullPath: '/app/pacientes/$id'
       preLoaderRoute: typeof AuthenticatedAppPacientesIdRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/prontuarios/': {
+      id: '/_authenticated/app/prontuarios/'
+      path: '/prontuarios'
+      fullPath: '/app/prontuarios/'
+      preLoaderRoute: typeof AuthenticatedAppProntuariosIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/prontuarios/$id': {
+      id: '/_authenticated/app/prontuarios/$id'
+      path: '/prontuarios/$id'
+      fullPath: '/app/prontuarios/$id'
+      preLoaderRoute: typeof AuthenticatedAppProntuariosIdRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
   }
