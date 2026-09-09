@@ -5,7 +5,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   AlertTriangle,
-  Ban,
+  ArrowDownAZ,
   CalendarClock,
   CheckCircle2,
   ChevronLeft,
@@ -32,6 +32,7 @@ import { exportIRYearCSV } from "@/lib/ir-export";
 import { MonthlyGoalCard } from "@/components/app/MonthlyGoalCard";
 import { ExpensesPieChart } from "@/components/app/ExpensesPieChart";
 import { FinanceHistoryCard } from "@/components/app/FinanceHistoryCard";
+import { QuickNotes } from "@/components/app/QuickNotes";
 
 import {
   currentPeriod,
@@ -76,8 +77,21 @@ type AppointmentLite = {
 };
 
 type PatientLite = { id: string; full_name: string };
+// "waived" continua existindo no banco (dados antigos), mas não é mais uma opção
+// selecionável no filtro nem gerada por nenhum fluxo novo — foi substituído por "Mensal".
 type StatusFilter = "all" | "pending" | "paid" | "overdue" | "waived";
+type SelectableStatusFilter = Exclude<StatusFilter, "waived">;
 type KindFilter = "all" | "monthly" | "session";
+type SortOption = "date_desc" | "date_asc" | "name_asc" | "name_desc" | "amount_desc" | "amount_asc";
+
+const SORT_OPTIONS: { id: SortOption; label: string }[] = [
+  { id: "date_desc", label: "Mais recente" },
+  { id: "date_asc", label: "Mais antigo" },
+  { id: "name_asc", label: "Nome A-Z" },
+  { id: "name_desc", label: "Nome Z-A" },
+  { id: "amount_desc", label: "Maior valor" },
+  { id: "amount_asc", label: "Menor valor" },
+];
 
 type Expense = {
   id: string;
@@ -142,6 +156,7 @@ function FinanceiroPage() {
   const [patients, setPatients] = useState<Record<string, PatientLite>>({});
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
+  const [sortBy, setSortBy] = useState<SortOption>("date_desc");
   const [search, setSearch] = useState("");
   const [period, setPeriod] = useState<Period>(() => currentPeriod("mes"));
   const [defaultPrice, setDefaultPrice] = useState<string>("");
@@ -297,9 +312,28 @@ function FinanceiroPage() {
     if (kindFilter === "monthly") list = list.filter((r) => !!r.is_monthly);
     if (kindFilter === "session") list = list.filter((r) => !r.is_monthly);
     if (q) list = list.filter((r) => nameOf(r).toLowerCase().includes(q));
-    return list;
+
+    const sorted = [...list];
+    sorted.sort((a, b) => {
+      switch (sortBy) {
+        case "date_asc":
+          return new Date(a.due_at ?? 0).getTime() - new Date(b.due_at ?? 0).getTime();
+        case "name_asc":
+          return nameOf(a).localeCompare(nameOf(b), "pt-BR");
+        case "name_desc":
+          return nameOf(b).localeCompare(nameOf(a), "pt-BR");
+        case "amount_desc":
+          return b.amount_cents - a.amount_cents;
+        case "amount_asc":
+          return a.amount_cents - b.amount_cents;
+        case "date_desc":
+        default:
+          return new Date(b.due_at ?? 0).getTime() - new Date(a.due_at ?? 0).getTime();
+      }
+    });
+    return sorted;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodReceivables, filter, kindFilter, search, patients, allPatients]);
+  }, [periodReceivables, filter, kindFilter, search, sortBy, patients, allPatients]);
 
   const counts = useMemo(() => {
     const c: Record<StatusFilter, number> = {
@@ -646,7 +680,7 @@ function FinanceiroPage() {
           <div className="mb-3 flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
               <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
-              {(["all", "pending", "paid", "overdue", "waived"] as StatusFilter[]).map((s) => (
+              {(["all", "pending", "paid", "overdue"] as SelectableStatusFilter[]).map((s) => (
                 <button
                   key={s}
                   onClick={() => setFilter(s)}
@@ -669,25 +703,41 @@ function FinanceiroPage() {
             </button>
           </div>
 
-          <div className="mb-3 flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground">Tipo:</span>
-            {([
-              ["all", "Todos"],
-              ["monthly", "Mensal"],
-              ["session", "Por sessão"],
-            ] as [KindFilter, string][]).map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => setKindFilter(k)}
-                className={`px-3 h-8 rounded-full text-xs whitespace-nowrap border transition-colors ${
-                  kindFilter === k
-                    ? "bg-foreground text-background border-foreground"
-                    : "border-border/60 text-muted-foreground hover:text-foreground"
-                }`}
+          <div className="mb-3 flex items-center gap-2 flex-wrap justify-between">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-muted-foreground">Tipo:</span>
+              {([
+                ["all", "Todos"],
+                ["monthly", "Mensal"],
+                ["session", "Por sessão"],
+              ] as [KindFilter, string][]).map(([k, label]) => (
+                <button
+                  key={k}
+                  onClick={() => setKindFilter(k)}
+                  className={`px-3 h-8 rounded-full text-xs whitespace-nowrap border transition-colors ${
+                    kindFilter === k
+                      ? "bg-foreground text-background border-foreground"
+                      : "border-border/60 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <ArrowDownAZ className="h-3.5 w-3.5 shrink-0" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="h-8 px-2 rounded-lg bg-surface border border-border/60 text-xs focus:outline-none focus:ring-2 focus:ring-ring/40"
               >
-                {label}
-              </button>
-            ))}
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div className="relative mb-3">
@@ -946,15 +996,6 @@ function FinanceiroPage() {
                                 A receber
                               </button>
                             )}
-                            {r.status !== "waived" && (
-                              <button
-                                onClick={() => updateReceivable(r.id, { status: "waived" })}
-                                className="h-9 px-3 rounded-lg text-xs border border-border/60 hover:bg-surface text-muted-foreground inline-flex items-center gap-1"
-                              >
-                                <Ban className="h-3.5 w-3.5" />
-                                Isento
-                              </button>
-                            )}
                           </>
                         )}
                         {isPicking && (
@@ -987,6 +1028,16 @@ function FinanceiroPage() {
                           </button>
                         )}
                       </div>
+                      <textarea
+                        defaultValue={r.notes ?? ""}
+                        onBlur={(e) => {
+                          const value = e.target.value.trim();
+                          if (value !== (r.notes ?? "")) updateReceivable(r.id, { notes: value || null });
+                        }}
+                        placeholder="Observações (opcional)"
+                        rows={1}
+                        className="w-full px-3 py-1.5 rounded-lg bg-background/60 border border-border/40 text-xs resize-none placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-ring/40 focus:resize-y"
+                      />
                     </li>
                   );
                 })}
@@ -1122,13 +1173,14 @@ function FinanceiroPage() {
         </>
       )}
 
-      <div className="mt-6">
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <FinanceHistoryCard
           receivables={receivables as never}
           expenses={expenses as never}
           activeLabel={periodLabel(period)}
           onSelect={(p) => setPeriod(p)}
         />
+        <QuickNotes />
       </div>
     </div>
 

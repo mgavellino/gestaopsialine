@@ -28,6 +28,7 @@ export type Database = {
           paid_at: string | null
           patient_id: string | null
           payment_method: string | null
+          period_key: string | null
           status: Database["public"]["Enums"]["receivable_status"]
           updated_at: string
         }
@@ -44,6 +45,7 @@ export type Database = {
           paid_at?: string | null
           patient_id?: string | null
           payment_method?: string | null
+          period_key?: string | null
           status?: Database["public"]["Enums"]["receivable_status"]
           updated_at?: string
         }
@@ -60,6 +62,7 @@ export type Database = {
           paid_at?: string | null
           patient_id?: string | null
           payment_method?: string | null
+          period_key?: string | null
           status?: Database["public"]["Enums"]["receivable_status"]
           updated_at?: string
         }
@@ -109,6 +112,8 @@ export type Database = {
       }
       appointments: {
         Row: {
+          bill_amount_cents: number | null
+          billing_mode: string | null
           created_at: string
           custom_kind: string | null
           ends_at: string
@@ -117,6 +122,7 @@ export type Database = {
           notes: string | null
           owner_id: string
           patient_id: string | null
+          receivable_created: boolean
           series_id: string | null
           starts_at: string
           status: Database["public"]["Enums"]["appointment_status"]
@@ -124,6 +130,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bill_amount_cents?: number | null
+          billing_mode?: string | null
           created_at?: string
           custom_kind?: string | null
           ends_at: string
@@ -132,6 +140,7 @@ export type Database = {
           notes?: string | null
           owner_id: string
           patient_id?: string | null
+          receivable_created?: boolean
           series_id?: string | null
           starts_at: string
           status?: Database["public"]["Enums"]["appointment_status"]
@@ -139,6 +148,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bill_amount_cents?: number | null
+          billing_mode?: string | null
           created_at?: string
           custom_kind?: string | null
           ends_at?: string
@@ -147,6 +158,7 @@ export type Database = {
           notes?: string | null
           owner_id?: string
           patient_id?: string | null
+          receivable_created?: boolean
           series_id?: string | null
           starts_at?: string
           status?: Database["public"]["Enums"]["appointment_status"]

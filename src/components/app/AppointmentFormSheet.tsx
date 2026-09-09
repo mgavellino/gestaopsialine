@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { format, addWeeks, endOfMonth, isSameDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { format, addWeeks, isSameDay } from "date-fns";
 import {
   Sheet,
   SheetContent,
@@ -14,6 +13,7 @@ import type { Patient } from "./PatientFormSheet";
 import { Trash2, MessageCircle, Search, X } from "lucide-react";
 import { waLink, reminderMessage, confirmationMessage } from "@/lib/whatsapp";
 import { parseMoneyToCents, centsToInput } from "@/lib/money";
+import { generateReceivableForCompletedAppointment, type BillingMode } from "@/lib/receivables";
 
 export type AppointmentKind = "consulta" | "reuniao" | "supervisao" | "pessoal" | "outro";
 export type AppointmentStatus = "scheduled" | "completed" | "cancelled" | "no_show";
@@ -30,6 +30,9 @@ export type Appointment = {
   custom_kind: string | null;
   notes: string | null;
   series_id?: string | null;
+  billing_mode?: BillingMode | null;
+  bill_amount_cents?: number | null;
+  receivable_created?: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -55,10 +58,6 @@ const KIND_LABELS: Record<AppointmentKind, string> = {
 
 function toLocalInput(d: Date) {
   return format(d, "yyyy-MM-dd'T'HH:mm");
-}
-
-function monthKey(d: Date) {
-  return `${d.getFullYear()}-${d.getMonth()}`;
 }
 
 export function AppointmentFormSheet({
@@ -204,69 +203,29 @@ export function AppointmentFormSheet({
 
   const needsPatient = kind === "consulta";
 
-  /** Cria os recebíveis das sessões criadas (por sessão ou mensalidade). */
-  const createReceivables = async (
-    created: Appointment[],
-    amountCents: number,
-    mode: "sessao" | "mensal",
-    pid: string,
-  ) => {
-    if (!ownerId || !created.length || !amountCents) return;
-    const patientName = allPatients.find((p) => p.id === pid)?.full_name ?? "Paciente";
-
-    if (mode === "sessao") {
-      const rows = created.map((a) => ({
-        owner_id: ownerId,
-        appointment_id: a.id,
-        patient_id: pid,
-        description: `Sessão ${format(new Date(a.starts_at), "dd/MM/yyyy")} — ${patientName}`,
-        amount_cents: amountCents,
-        status: "pending" as const,
-        due_at: a.starts_at,
-        is_monthly: false,
-      }));
-      const { error } = await supabase.from("appointment_receivables").insert(rows);
-      if (error) toast.error(`Sessões criadas, mas houve erro na cobrança: ${error.message}`);
-      return;
+  /**
+   * Gera o recebível de uma consulta específica quando ela já nasce (ou passa a ser)
+   * "Realizada" — nunca no momento do agendamento. Ver src/lib/receivables.ts.
+   */
+  const generateReceivableIfCompleted = async (a: Appointment, pid: string | null) => {
+    if (a.status !== "completed") return;
+    const patientName = pid ? allPatients.find((p) => p.id === pid)?.full_name : undefined;
+    try {
+      await generateReceivableForCompletedAppointment(
+        {
+          id: a.id,
+          owner_id: a.owner_id,
+          patient_id: a.patient_id,
+          starts_at: a.starts_at,
+          billing_mode: a.billing_mode ?? null,
+          bill_amount_cents: a.bill_amount_cents ?? null,
+          receivable_created: a.receivable_created ?? false,
+        },
+        patientName,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? `Erro ao gerar cobrança: ${err.message}` : "Erro ao gerar cobrança");
     }
-
-    // Mensal: cada sessão fica isenta (já incluída na mensalidade) e criamos 1 cobrança por mês.
-    const perSession = created.map((a) => ({
-      owner_id: ownerId,
-      appointment_id: a.id,
-      patient_id: pid,
-      description: "Incluída na mensalidade",
-      amount_cents: 0,
-      status: "waived" as const,
-      due_at: a.starts_at,
-      is_monthly: false,
-    }));
-
-    const groups = new Map<string, Appointment[]>();
-    for (const a of created) {
-      const k = monthKey(new Date(a.starts_at));
-      groups.set(k, [...(groups.get(k) ?? []), a]);
-    }
-    const monthly = Array.from(groups.values()).map((list) => {
-      const first = new Date(list[0].starts_at);
-      const due = endOfMonth(first);
-      due.setHours(12, 0, 0, 0);
-      return {
-        owner_id: ownerId,
-        appointment_id: null,
-        patient_id: pid,
-        description: `Mensalidade ${format(first, "MMMM/yyyy", { locale: ptBR })} — ${patientName} (${list.length} sessões)`,
-        amount_cents: amountCents * list.length,
-        status: "pending" as const,
-        due_at: due.toISOString(),
-        is_monthly: true,
-      };
-    });
-
-    const { error } = await supabase
-      .from("appointment_receivables")
-      .insert([...perSession, ...monthly]);
-    if (error) toast.error(`Sessões criadas, mas houve erro na mensalidade: ${error.message}`);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -293,9 +252,18 @@ export function AppointmentFormSheet({
       ends_at: new Date(ends).toISOString(),
       status,
       notes: notes.trim() || null,
+      // A cobrança só é guardada aqui; o recebível em si só é criado quando a consulta
+      // for marcada como "Realizada" (ver generateReceivableIfCompleted / src/lib/receivables.ts).
+      ...(wantsBilling
+        ? {
+            billing_mode: (billing === "mensal" ? "mensal" : "sessao") as BillingMode,
+            bill_amount_cents: amountCents,
+          }
+        : {}),
     };
 
     if (appointment) {
+      const wasCompleted = appointment.status === "completed";
       const { error } = await supabase
         .from("appointments")
         .update(payload)
@@ -303,6 +271,13 @@ export function AppointmentFormSheet({
       setSaving(false);
       if (error) return toast.error(error.message);
       toast.success("Compromisso atualizado");
+      // Consulta acabou de virar "Realizada" agora: gera o recebível (se houver cobrança configurada).
+      if (!wasCompleted && status === "completed") {
+        await generateReceivableIfCompleted(
+          { ...appointment, status: "completed" },
+          appointment.patient_id,
+        );
+      }
       onSaved();
     } else {
       const step = repeat === "weekly" ? 1 : repeat === "biweekly" ? 2 : 0;
@@ -326,13 +301,11 @@ export function AppointmentFormSheet({
       const createdList = ((data ?? []) as unknown as Appointment[]).sort(
         (a, b) => +new Date(a.starts_at) - +new Date(b.starts_at),
       );
-      if (wantsBilling && createdList.length) {
-        await createReceivables(
-          createdList.filter((a) => a.status !== "cancelled"),
-          amountCents,
-          billing === "mensal" ? "mensal" : "sessao",
-          patientId,
-        );
+      // Normalmente a consulta nasce "Agendada" e a cobrança só será gerada quando virar
+      // "Realizada" (manualmente ou pelo auto-complete da agenda). Cobre o caso raro de já
+      // criar direto como "Realizada" (ex: lançar uma sessão passada).
+      for (const a of createdList) {
+        if (a.status === "completed") await generateReceivableIfCompleted(a, patientId);
       }
       setSaving(false);
       toast.success(
@@ -671,8 +644,8 @@ export function AppointmentFormSheet({
                   />
                   <p className="mt-1 text-[11px] text-muted-foreground">
                     {billing === "mensal"
-                      ? "Será criada uma mensalidade por mês, somando as sessões daquele mês, com vencimento no último dia do mês."
-                      : "Será criada uma cobrança por sessão, com vencimento no dia da sessão."}
+                      ? "A mensalidade só entra no Financeiro conforme cada sessão for marcada como Realizada — as sessões do mês vão sendo somadas num único recebível, com vencimento no último dia do mês."
+                      : "A cobrança só entra no Financeiro quando a sessão for marcada como Realizada, com vencimento no dia da sessão."}
                   </p>
                 </Field>
               )}

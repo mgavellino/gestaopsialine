@@ -20,6 +20,7 @@ import {
 } from "@/components/app/AppointmentFormSheet";
 import type { Patient } from "@/components/app/PatientFormSheet";
 import { STATUS_STYLE, KIND_LABELS } from "@/lib/appointment-style";
+import { generateReceivableForCompletedAppointment } from "@/lib/receivables";
 
 export const Route = createFileRoute("/_authenticated/app/agenda")({
   component: AgendaPage,
@@ -53,14 +54,47 @@ function AgendaPage() {
   const visibleDays = isMobile ? [days[Math.min(dayIndex, 6)]] : days;
 
 
-  /** Consultas agendadas cujo horário já terminou passam a "Realizada" automaticamente. */
+  /**
+   * Consultas agendadas cujo horário já terminou passam a "Realizada" automaticamente.
+   * É só neste momento (nunca no agendamento) que a cobrança configurada para a consulta
+   * é enviada para o Financeiro — ver src/lib/receivables.ts.
+   */
   const autoCompletePast = async () => {
-    await supabase
+    const { data: due } = await supabase
       .from("appointments")
-      .update({ status: "completed" })
+      .select("id, owner_id, patient_id, starts_at, billing_mode, bill_amount_cents, receivable_created")
       .eq("kind", "consulta")
       .eq("status", "scheduled")
       .lt("ends_at", new Date().toISOString());
+
+    if (!due || due.length === 0) return;
+
+    await supabase
+      .from("appointments")
+      .update({ status: "completed" })
+      .in(
+        "id",
+        due.map((a) => a.id),
+      );
+
+    const pendingBilling = due.filter((a) => a.billing_mode && !a.receivable_created);
+    if (!pendingBilling.length) return;
+
+    const patientIds = Array.from(new Set(pendingBilling.map((a) => a.patient_id).filter(Boolean) as string[]));
+    const patientNames: Record<string, string> = {};
+    if (patientIds.length) {
+      const { data: pats } = await supabase.from("patients").select("id, full_name").in("id", patientIds);
+      for (const p of (pats ?? []) as { id: string; full_name: string }[]) patientNames[p.id] = p.full_name;
+    }
+
+    for (const a of pendingBilling) {
+      try {
+        await generateReceivableForCompletedAppointment(a, a.patient_id ? patientNames[a.patient_id] : undefined);
+      } catch {
+        // Não bloqueia a agenda por causa de uma cobrança; o profissional ainda pode
+        // gerar/ajustar manualmente no Financeiro depois.
+      }
+    }
   };
 
   const load = async () => {
