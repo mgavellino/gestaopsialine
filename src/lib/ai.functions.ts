@@ -47,8 +47,7 @@ const TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "list_patients",
-      description:
-        "Lista pacientes (opcionalmente filtra por nome). Use antes de criar para evitar duplicatas, ou para resolver patient_id por nome.",
+      description: "Lista pacientes (opcionalmente filtra por nome). Use antes de criar para evitar duplicatas, ou para resolver patient_id por nome.",
       parameters: {
         type: "object",
         properties: {
@@ -79,8 +78,7 @@ const TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "list_appointments",
-      description:
-        "Lista compromissos num intervalo. Use pra responder 'quem tem hoje', 'esta semana', etc.",
+      description: "Lista compromissos num intervalo. Use pra responder 'quem tem hoje', 'esta semana', etc.",
       parameters: {
         type: "object",
         properties: {
@@ -95,8 +93,7 @@ const TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "schedule_appointment",
-      description:
-        "Agenda um compromisso. Use patient_id (descobrir via list_patients) ou patient_name (busca automática). Duração padrão 50 min se ends_at não vier.",
+      description: "Agenda um compromisso. Use patient_id (descobrir via list_patients) ou patient_name (busca automática). Duração padrão 50 min se ends_at não vier.",
       parameters: {
         type: "object",
         properties: {
@@ -116,17 +113,13 @@ const TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "mark_appointment_paid",
-      description:
-        "Marca a consulta como recebida (cria recebível concluído). Use appointment_id; se só souber paciente+data, primeiro liste compromissos pra achar o id.",
+      description: "Marca a consulta como recebida (cria recebível concluído). Use appointment_id; se só souber paciente+data, primeiro liste compromissos pra achar o id.",
       parameters: {
         type: "object",
         properties: {
           appointment_id: { type: "string" },
           amount_cents: { type: "number" },
-          payment_method: {
-            type: "string",
-            enum: ["pix", "dinheiro", "cartao_credito", "cartao_debito", "transferencia"],
-          },
+          payment_method: { type: "string", enum: ["pix", "dinheiro", "cartao_credito", "cartao_debito", "transferencia"] },
         },
         required: ["appointment_id", "payment_method"],
       },
@@ -143,10 +136,7 @@ const TOOLS: ToolDef[] = [
           description: { type: "string" },
           amount_cents: { type: "number" },
           category: { type: "string", description: "ex: aluguel, material, supervisao, marketing" },
-          payment_method: {
-            type: "string",
-            enum: ["pix", "dinheiro", "cartao_credito", "cartao_debito", "transferencia"],
-          },
+          payment_method: { type: "string", enum: ["pix", "dinheiro", "cartao_credito", "cartao_debito", "transferencia"] },
           paid_at: { type: "string", description: "ISO date (default: agora)" },
         },
         required: ["description", "amount_cents"],
@@ -198,8 +188,7 @@ const TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "today_briefing",
-      description:
-        "Resumo do dia: consultas, recebíveis pendentes, aniversariantes hoje, pacientes inativos.",
+      description: "Resumo do dia: consultas, recebíveis pendentes, aniversariantes hoje, pacientes inativos.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -233,11 +222,7 @@ async function runTool(
     switch (name) {
       case "list_patients": {
         const q = (args.query as string | undefined)?.trim();
-        let qb = supabase
-          .from("patients")
-          .select("id, full_name, phone, email")
-          .order("full_name")
-          .limit(20);
+        let qb = supabase.from("patients").select("id, full_name, phone, email").order("full_name").limit(20);
         if (q) qb = qb.ilike("full_name", `%${q}%`);
         const { data, error } = await qb;
         if (error) throw error;
@@ -276,16 +261,10 @@ async function runTool(
             .ilike("full_name", `%${String(args.patient_name)}%`)
             .limit(2);
           if (!pats || pats.length === 0) {
-            return {
-              ok: false,
-              error: `Paciente "${args.patient_name}" não encontrada. Crie primeiro.`,
-            };
+            return { ok: false, error: `Paciente "${args.patient_name}" não encontrada. Crie primeiro.` };
           }
           if (pats.length > 1) {
-            return {
-              ok: false,
-              error: `Mais de uma paciente bate com "${args.patient_name}". Especifique melhor.`,
-            };
+            return { ok: false, error: `Mais de uma paciente bate com "${args.patient_name}". Especifique melhor.` };
           }
           patientId = pats[0].id;
         }
@@ -311,11 +290,7 @@ async function runTool(
         return {
           ok: true,
           data,
-          summary: starts.toLocaleString("pt-BR", {
-            timeZone: "America/Sao_Paulo",
-            dateStyle: "short",
-            timeStyle: "short",
-          }),
+          summary: starts.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }),
         };
       }
       case "mark_appointment_paid": {
@@ -395,7 +370,11 @@ async function runTool(
             .from("appointment_receivables")
             .select("amount_cents")
             .in("status", ["pending", "overdue"]),
-          supabase.from("expenses").select("amount_cents").gte("paid_at", start).lt("paid_at", end),
+          supabase
+            .from("expenses")
+            .select("amount_cents")
+            .gte("paid_at", start)
+            .lt("paid_at", end),
         ]);
         const sum = (rows: { amount_cents: number }[] | null) =>
           (rows ?? []).reduce((s, r) => s + (r.amount_cents ?? 0), 0);
@@ -539,16 +518,8 @@ export const chatWithAi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) => InputSchema.parse(data))
   .handler(async ({ data, context }) => {
-    // Antes usava o gateway do Lovable (ai.gateway.lovable.dev). Fora do Lovable, aponte
-    // para qualquer endpoint compatível com o formato "chat/completions" da OpenAI —
-    // por padrão, OpenRouter (https://openrouter.ai/api/v1), que usa o mesmo nome de
-    // modelo "google/gemini-2.5-flash". Configure via env: AI_GATEWAY_URL, AI_GATEWAY_API_KEY,
-    // AI_GATEWAY_MODEL.
-    const apiKey = process.env.AI_GATEWAY_API_KEY;
-    if (!apiKey) throw new Error("AI_GATEWAY_API_KEY não configurada");
-    const gatewayUrl =
-      process.env.AI_GATEWAY_URL ?? "https://openrouter.ai/api/v1/chat/completions";
-    const model = process.env.AI_GATEWAY_MODEL ?? "google/gemini-2.5-flash";
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("LOVABLE_API_KEY não configurada");
 
     const { supabase, userId } = context;
     const toolHistory: { name: string; ok: boolean; summary?: string }[] = [];
@@ -559,23 +530,21 @@ export const chatWithAi = createServerFn({ method: "POST" })
 
     let finalText = "";
     for (let iter = 0; iter < 6; iter++) {
-      const response = await fetch(gatewayUrl, {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model,
+          model: "google/gemini-2.5-flash",
           messages: convo,
           tools: TOOLS,
         }),
       });
 
-      if (response.status === 429)
-        throw new Error("Muitas requisições. Aguarde e tente novamente.");
-      if (response.status === 402)
-        throw new Error("Créditos de IA esgotados. Adicione créditos pra continuar.");
+      if (response.status === 429) throw new Error("Muitas requisições. Aguarde e tente novamente.");
+      if (response.status === 402) throw new Error("Créditos de IA esgotados. Adicione créditos pra continuar.");
       if (!response.ok) {
         const text = await response.text();
         console.error("AI gateway error:", response.status, text);

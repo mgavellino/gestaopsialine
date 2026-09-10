@@ -1,59 +1,16 @@
-// Config padrão do TanStack Start + Vite, sem depender de pacotes do Lovable.
-// Preset de deploy: "vercel" quando VERCEL=1 (Vercel define essa env automaticamente),
-// senão "cloudflare-module" (Cloudflare Workers/Pages). Ajuste NITRO_PRESET se usar
-// outro alvo (ex: "node-server" para rodar num servidor Node/VPS próprio).
-import { defineConfig, loadEnv, type UserConfig } from "vite";
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
-import { nitro } from "nitro/vite";
-import tailwindcss from "@tailwindcss/vite";
-import tsConfigPaths from "vite-tsconfig-paths";
-import viteReact from "@vitejs/plugin-react";
+// @lovable.dev/vite-tanstack-config já inclui plugins padrão.
+// Para deploy em Vercel, ativamos Nitro com preset "vercel" (Build Output API).
+// No sandbox do Lovable / preview o nitro roda com preset cloudflare-module (default interno).
+import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
 
-function resolveNitroPreset(): string {
-  if (process.env.NITRO_PRESET) return process.env.NITRO_PRESET;
-  if (process.env.VERCEL) return "vercel";
-  return "cloudflare-module";
-}
+const isVercel = !!process.env.VERCEL;
 
-export default defineConfig(async ({ mode }) => {
-  const internalPlugins = [];
-
-  if (mode === "development") {
-    const { devtools } = await import("@tanstack/devtools-vite");
-    internalPlugins.push(
-      devtools({
-        logging: false,
-        eventBusConfig: { enabled: false },
-        enhancedLogs: { enabled: false },
-        consolePiping: { enabled: false },
-        removeDevtoolsOnBuild: false,
-        injectSource: { enabled: true },
-      }),
-    );
-  }
-
-  internalPlugins.push(tailwindcss());
-  internalPlugins.push(tsConfigPaths({ projects: ["./tsconfig.json"] }));
-  internalPlugins.push(
-    tanstackStart({
-      importProtection: {
-        behavior: "error",
-        client: {
-          files: ["**/server/**"],
-          specifiers: ["server-only"],
-        },
-      },
-      server: { entry: "server" },
-    }),
-  );
-  internalPlugins.push(
-    nitro({
-      preset: resolveNitroPreset(),
-    }),
-  );
-  internalPlugins.push(viteReact());
-  internalPlugins.push(
+export default defineConfig({
+  tanstackStart: {
+    server: { entry: "server" },
+  },
+  plugins: [
     VitePWA({
       strategies: "generateSW",
       registerType: "autoUpdate",
@@ -101,46 +58,12 @@ export default defineConfig(async ({ mode }) => {
         ],
       },
     }),
-  );
-
-  // Replica o comportamento anterior de expor VITE_* via import.meta.env também
-  // durante o bundle do servidor (SSR/Nitro), não só no client.
-  const loadedEnv = loadEnv(mode, process.cwd(), "VITE_");
-  const envDefine: Record<string, string> = {};
-  for (const [key, value] of Object.entries(loadedEnv)) {
-    envDefine[`import.meta.env.${key}`] = JSON.stringify(value);
-  }
-
-  const config: UserConfig = {
-    define: envDefine,
-    css: { transformer: "lightningcss" },
-    resolve: {
-      alias: { "@": `${process.cwd()}/src` },
-      dedupe: [
-        "react",
-        "react-dom",
-        "react/jsx-runtime",
-        "react/jsx-dev-runtime",
-        "@tanstack/react-query",
-        "@tanstack/query-core",
-      ],
-    },
-    optimizeDeps: {
-      include: [
-        "react",
-        "react-dom",
-        "react-dom/client",
-        "react/jsx-runtime",
-        "react/jsx-dev-runtime",
-      ],
-      ignoreOutdatedRequests: true,
-    },
-    server: {
-      host: "::",
-      port: 8080,
-    },
-    plugins: internalPlugins,
-  };
-
-  return config;
+  ],
+  ...(isVercel
+    ? {
+        nitro: {
+          preset: "vercel",
+        },
+      }
+    : {}),
 });

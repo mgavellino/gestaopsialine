@@ -39,26 +39,22 @@ export const generateSoapDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) => InputSchema.parse(data))
   .handler(async ({ data }) => {
-    // Ver comentário equivalente em src/lib/ai.functions.ts (chatWithAi).
-    const apiKey = process.env.AI_GATEWAY_API_KEY;
-    if (!apiKey) throw new Error("AI_GATEWAY_API_KEY não configurada");
-    const gatewayUrl =
-      process.env.AI_GATEWAY_URL ?? "https://openrouter.ai/api/v1/chat/completions";
-    const model = process.env.AI_GATEWAY_MODEL ?? "google/gemini-2.5-flash";
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("LOVABLE_API_KEY não configurada");
 
     const system = PROMPTS[data.template];
     const userMsg = data.patientContext
       ? `Contexto da paciente: ${data.patientContext}\n\nBullets da sessão:\n${data.bullets}`
       : `Bullets da sessão:\n${data.bullets}`;
 
-    const response = await fetch(gatewayUrl, {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model,
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: system },
           { role: "user", content: userMsg },
