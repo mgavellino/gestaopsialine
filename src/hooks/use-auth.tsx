@@ -33,29 +33,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Set up listener FIRST
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, newSession) => {
-      setSession(newSession);
-      setLoading(false);
-      if (event === "PASSWORD_RECOVERY") {
-        redirectToResetPassword();
-      }
-    });
+    // Nunca deixe uma falha de configuração derrubar a tela toda:
+    // sem sessão o app apenas mostra a tela de login.
+    let unsubscribe = () => {};
+    try {
+      // Set up listener FIRST
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((event, newSession) => {
+        setSession(newSession);
+        setLoading(false);
+        if (event === "PASSWORD_RECOVERY") {
+          redirectToResetPassword();
+        }
+      });
+      unsubscribe = () => subscription.unsubscribe();
 
-    // Then check current session
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+      // Then check current session
+      supabase.auth
+        .getSession()
+        .then(({ data }) => {
+          setSession(data.session);
+          setLoading(false);
+          if (isPasswordRecoveryRedirect()) redirectToResetPassword();
+        })
+        .catch((err) => {
+          console.error(err);
+          setLoading(false);
+        });
+    } catch (err) {
+      console.error(err);
       setLoading(false);
-      if (isPasswordRecoveryRedirect()) redirectToResetPassword();
-    });
+    }
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error(err);
+    }
+    setSession(null);
   };
 
   return (
