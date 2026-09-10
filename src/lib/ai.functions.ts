@@ -322,8 +322,12 @@ async function runTool(
         const apptId = String(args.appointment_id);
         const method = String(args.payment_method);
         const amount = args.amount_cents as number | undefined;
-        // Mark appointment completed (triggers receivable creation below)
-        await supabase.from("appointments").update({ status: "completed" }).eq("id", apptId);
+        // Mark appointment completed; this path creates/updates the receivable directly below,
+        // so flag receivable_created to avoid the agenda's auto-complete also generating one.
+        await supabase
+          .from("appointments")
+          .update({ status: "completed", receivable_created: true })
+          .eq("id", apptId);
         // Upsert receivable
         const { data: existing } = await supabase
           .from("appointment_receivables")
