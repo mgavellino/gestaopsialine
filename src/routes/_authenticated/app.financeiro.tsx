@@ -33,6 +33,7 @@ import { MonthlyGoalCard } from "@/components/app/MonthlyGoalCard";
 import { ExpensesPieChart } from "@/components/app/ExpensesPieChart";
 import { FinanceHistoryCard } from "@/components/app/FinanceHistoryCard";
 import { QuickNotes } from "@/components/app/QuickNotes";
+import { ScratchNotes } from "@/components/app/ScratchNotes";
 
 import {
   currentPeriod,
@@ -45,7 +46,6 @@ import {
   type Period,
   type PeriodMode,
 } from "@/lib/finance-periods";
-
 
 export const Route = createFileRoute("/_authenticated/app/financeiro")({
   component: FinanceiroPage,
@@ -82,7 +82,8 @@ type PatientLite = { id: string; full_name: string };
 type StatusFilter = "all" | "pending" | "paid" | "overdue" | "waived";
 type SelectableStatusFilter = Exclude<StatusFilter, "waived">;
 type KindFilter = "all" | "monthly" | "session";
-type SortOption = "date_desc" | "date_asc" | "name_asc" | "name_desc" | "amount_desc" | "amount_asc";
+type SortOption =
+  "date_desc" | "date_asc" | "name_asc" | "name_desc" | "amount_desc" | "amount_asc";
 
 const SORT_OPTIONS: { id: SortOption; label: string }[] = [
   { id: "date_desc", label: "Mais recente" },
@@ -190,7 +191,9 @@ function FinanceiroPage() {
     if (!description || Number.isNaN(cents) || cents <= 0) {
       return toast.error("Preencha descrição (ou paciente) e valor");
     }
-    const months = incomeForm.monthly ? Math.max(1, Math.min(36, parseInt(incomeForm.months, 10) || 1)) : 1;
+    const months = incomeForm.monthly
+      ? Math.max(1, Math.min(36, parseInt(incomeForm.months, 10) || 1))
+      : 1;
     const base = new Date(incomeForm.date + "T12:00:00");
 
     const rows = Array.from({ length: months }, (_, i) => {
@@ -221,7 +224,6 @@ function FinanceiroPage() {
     loadReceivables();
   };
 
-
   useEffect(() => {
     if (!user) return;
     supabase
@@ -241,7 +243,6 @@ function FinanceiroPage() {
       .then(({ data }) => setAllPatients((data as unknown as PatientLite[]) ?? []));
     loadAll();
   }, [user]);
-
 
   const loadAll = async () => {
     await Promise.all([loadReceivables(), loadExpenses()]);
@@ -271,10 +272,7 @@ function FinanceiroPage() {
       setAppts(m);
     }
     if (patIds.length) {
-      const { data: p } = await supabase
-        .from("patients")
-        .select("id, full_name")
-        .in("id", patIds);
+      const { data: p } = await supabase.from("patients").select("id, full_name").in("id", patIds);
       const m: Record<string, PatientLite> = {};
       for (const row of (p as unknown as PatientLite[]) ?? []) m[row.id] = row;
       setPatients(m);
@@ -308,7 +306,10 @@ function FinanceiroPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let list = filter === "all" ? periodReceivables : periodReceivables.filter((r) => effStatus(r) === filter);
+    let list =
+      filter === "all"
+        ? periodReceivables
+        : periodReceivables.filter((r) => effStatus(r) === filter);
     if (kindFilter === "monthly") list = list.filter((r) => !!r.is_monthly);
     if (kindFilter === "session") list = list.filter((r) => !r.is_monthly);
     if (q) list = list.filter((r) => nameOf(r).toLowerCase().includes(q));
@@ -361,7 +362,6 @@ function FinanceiroPage() {
     for (const e of periodExpenses) spent += e.amount_cents;
     return { received, pending, overdue, expenses: spent, profit: received - spent };
   }, [periodReceivables, periodExpenses]);
-
 
   const updateReceivable = async (id: string, patch: Partial<Receivable>) => {
     const { error } = await supabase.from("appointment_receivables").update(patch).eq("id", id);
@@ -442,42 +442,51 @@ function FinanceiroPage() {
     const prevStart = prevRange.start.toISOString();
     const prevEnd = prevRange.end.toISOString();
 
+    const [
+      { data: paidRecs },
+      { data: prevPaidRecs },
+      { data: prevExp },
+      { data: profile },
+      { data: doneAppts },
+    ] = await Promise.all([
+      supabase
+        .from("appointment_receivables")
+        .select("amount_cents, payment_method, patient_id")
+        .eq("status", "paid")
+        .gte("paid_at", monthStart)
+        .lte("paid_at", monthEnd),
+      supabase
+        .from("appointment_receivables")
+        .select("amount_cents")
+        .eq("status", "paid")
+        .gte("paid_at", prevStart)
+        .lte("paid_at", prevEnd),
+      supabase
+        .from("expenses")
+        .select("amount_cents")
+        .gte("paid_at", prevStart)
+        .lte("paid_at", prevEnd),
+      supabase.from("profiles").select("full_name, crp").eq("id", user.id).maybeSingle(),
+      supabase
+        .from("appointments")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "completed")
+        .gte("starts_at", monthStart)
+        .lte("starts_at", monthEnd),
+    ]);
 
-    const [{ data: paidRecs }, { data: prevPaidRecs }, { data: prevExp }, { data: profile }, { data: doneAppts }] =
-      await Promise.all([
-        supabase
-          .from("appointment_receivables")
-          .select("amount_cents, payment_method, patient_id")
-          .eq("status", "paid")
-          .gte("paid_at", monthStart)
-          .lte("paid_at", monthEnd),
-        supabase
-          .from("appointment_receivables")
-          .select("amount_cents")
-          .eq("status", "paid")
-          .gte("paid_at", prevStart)
-          .lte("paid_at", prevEnd),
-        supabase
-          .from("expenses")
-          .select("amount_cents")
-          .gte("paid_at", prevStart)
-          .lte("paid_at", prevEnd),
-        supabase.from("profiles").select("full_name, crp").eq("id", user.id).maybeSingle(),
-        supabase
-          .from("appointments")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "completed")
-          .gte("starts_at", monthStart)
-          .lte("starts_at", monthEnd),
-      ]);
-
-    const paid = (paidRecs ?? []) as { amount_cents: number; payment_method: string | null; patient_id: string | null }[];
+    const paid = (paidRecs ?? []) as {
+      amount_cents: number;
+      payment_method: string | null;
+      patient_id: string | null;
+    }[];
     const methodTotals: Record<string, number> = {};
     const patientTotals: Record<string, number> = {};
     for (const r of paid) {
       const m = r.payment_method ?? "outro";
       methodTotals[m] = (methodTotals[m] ?? 0) + r.amount_cents;
-      if (r.patient_id) patientTotals[r.patient_id] = (patientTotals[r.patient_id] ?? 0) + r.amount_cents;
+      if (r.patient_id)
+        patientTotals[r.patient_id] = (patientTotals[r.patient_id] ?? 0) + r.amount_cents;
     }
     const monthExp = expenses.filter((e) => e.paid_at >= monthStart && e.paid_at <= monthEnd);
     const catTotals: Record<string, number> = {};
@@ -503,8 +512,14 @@ function FinanceiroPage() {
       }
     }
 
-    const prevPaid = ((prevPaidRecs ?? []) as { amount_cents: number }[]).reduce((s, r) => s + r.amount_cents, 0);
-    const prevExpenses = ((prevExp ?? []) as { amount_cents: number }[]).reduce((s, r) => s + r.amount_cents, 0);
+    const prevPaid = ((prevPaidRecs ?? []) as { amount_cents: number }[]).reduce(
+      (s, r) => s + r.amount_cents,
+      0,
+    );
+    const prevExpenses = ((prevExp ?? []) as { amount_cents: number }[]).reduce(
+      (s, r) => s + r.amount_cents,
+      0,
+    );
     const prevProfit = prevPaid - prevExpenses;
 
     const prof = profile as { full_name?: string; crp?: string } | null;
@@ -565,11 +580,13 @@ function FinanceiroPage() {
       {/* Seletor de período: semana / mês / ano, com histórico navegável */}
       <div className="mb-6 rounded-2xl border border-border/60 bg-surface/40 p-3 md:p-4 grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
         <div className="flex items-center gap-1 p-1 rounded-xl bg-background/60 border border-border/60 w-fit">
-          {([
-            { id: "semana", label: "Semana" },
-            { id: "mes", label: "Mês" },
-            { id: "ano", label: "Ano" },
-          ] as { id: PeriodMode; label: string }[]).map((m) => (
+          {(
+            [
+              { id: "semana", label: "Semana" },
+              { id: "mes", label: "Mês" },
+              { id: "ano", label: "Ano" },
+            ] as { id: PeriodMode; label: string }[]
+          ).map((m) => (
             <button
               key={m.id}
               onClick={() => setPeriod((p) => withMode(p, m.id))}
@@ -611,10 +628,12 @@ function FinanceiroPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2 mb-6">
-        <MonthlyGoalCard receivedCents={stats.received} pendingCents={stats.pending + stats.overdue} />
+        <MonthlyGoalCard
+          receivedCents={stats.received}
+          pendingCents={stats.pending + stats.overdue}
+        />
         <ExpensesPieChart expenses={periodExpenses as never} />
       </div>
-
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 mb-6">
         <StatCard label="Recebido" value={brl(stats.received)} tone="emerald" />
@@ -706,11 +725,13 @@ function FinanceiroPage() {
           <div className="mb-3 flex items-center gap-2 flex-wrap justify-between">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-muted-foreground">Tipo:</span>
-              {([
-                ["all", "Todos"],
-                ["monthly", "Mensal"],
-                ["session", "Por sessão"],
-              ] as [KindFilter, string][]).map(([k, label]) => (
+              {(
+                [
+                  ["all", "Todos"],
+                  ["monthly", "Mensal"],
+                  ["session", "Por sessão"],
+                ] as [KindFilter, string][]
+              ).map(([k, label]) => (
                 <button
                   key={k}
                   onClick={() => setKindFilter(k)}
@@ -912,7 +933,9 @@ function FinanceiroPage() {
                           </div>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             {ap
-                              ? format(parseISO(ap.starts_at), "dd 'de' MMM, HH:mm", { locale: ptBR })
+                              ? format(parseISO(ap.starts_at), "dd 'de' MMM, HH:mm", {
+                                  locale: ptBR,
+                                })
                               : r.description
                                 ? "Receita avulsa"
                                 : "Consulta"}
@@ -924,7 +947,9 @@ function FinanceiroPage() {
                             Mensal
                           </span>
                         )}
-                        <span className={`text-[11px] px-2 py-1 rounded-full border shrink-0 ${meta.cls}`}>
+                        <span
+                          className={`text-[11px] px-2 py-1 rounded-full border shrink-0 ${meta.cls}`}
+                        >
                           {meta.label}
                         </span>
                         <button
@@ -950,7 +975,8 @@ function FinanceiroPage() {
                             onTouchStart={focusMoneyInput}
                             onBlur={(e) => {
                               const cents = parseMoneyToCents(e.target.value);
-                              if (!Number.isNaN(cents) && cents !== r.amount_cents) setAmount(r, e.target.value);
+                              if (!Number.isNaN(cents) && cents !== r.amount_cents)
+                                setAmount(r, e.target.value);
                             }}
                             className="h-10 w-28 px-2 rounded-lg bg-background border border-border/60 text-base sm:text-sm text-right focus:outline-none focus:ring-2 focus:ring-ring/40"
                           />
@@ -964,7 +990,9 @@ function FinanceiroPage() {
                             onChange={(e) => {
                               const v = e.target.value;
                               if (!v) return;
-                              updateReceivable(r.id, { due_at: new Date(v + "T12:00:00").toISOString() });
+                              updateReceivable(r.id, {
+                                due_at: new Date(v + "T12:00:00").toISOString(),
+                              });
                             }}
                             className="h-9 px-2 rounded-lg bg-background border border-border/60 text-xs focus:outline-none focus:ring-2 focus:ring-ring/40"
                           />
@@ -992,8 +1020,7 @@ function FinanceiroPage() {
                                 onClick={() => updateReceivable(r.id, { status: "pending" })}
                                 className="h-9 px-3 rounded-lg text-xs border border-border/60 hover:bg-surface text-muted-foreground inline-flex items-center gap-1"
                               >
-                                <RotateCcw className="h-3.5 w-3.5" />
-                                A receber
+                                <RotateCcw className="h-3.5 w-3.5" />A receber
                               </button>
                             )}
                           </>
@@ -1020,7 +1047,11 @@ function FinanceiroPage() {
                         {r.status === "paid" && (
                           <button
                             onClick={() =>
-                              updateReceivable(r.id, { status: "pending", paid_at: null, payment_method: null })
+                              updateReceivable(r.id, {
+                                status: "pending",
+                                paid_at: null,
+                                payment_method: null,
+                              })
                             }
                             className="h-9 px-3 rounded-lg text-xs border border-border/60 hover:bg-surface text-muted-foreground"
                           >
@@ -1032,7 +1063,8 @@ function FinanceiroPage() {
                         defaultValue={r.notes ?? ""}
                         onBlur={(e) => {
                           const value = e.target.value.trim();
-                          if (value !== (r.notes ?? "")) updateReceivable(r.id, { notes: value || null });
+                          if (value !== (r.notes ?? ""))
+                            updateReceivable(r.id, { notes: value || null });
                         }}
                         placeholder="Observações (opcional)"
                         rows={1}
@@ -1180,10 +1212,12 @@ function FinanceiroPage() {
           activeLabel={periodLabel(period)}
           onSelect={(p) => setPeriod(p)}
         />
-        <QuickNotes />
+        <div className="flex flex-col gap-4">
+          <QuickNotes />
+          <ScratchNotes />
+        </div>
       </div>
     </div>
-
   );
 }
 
